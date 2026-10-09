@@ -284,6 +284,36 @@ const (
 			}
 		}
 
+		/* Mascotte du champ captcha : même base mais opacité fixe en responsive,
+		   s'éclaircit quand on clique dans l'input. */
+		.captcha-field .upload-btn-mascot {
+			opacity: 0.5;
+		}
+
+		.captcha-field:focus-within .upload-btn-mascot {
+			opacity: 0.75;
+		}
+
+		@media (max-width: 768px) {
+			.captcha-field .upload-btn-mascot {
+				opacity: 0.5;
+			}
+
+			.captcha-field:focus-within .upload-btn-mascot {
+				opacity: 0.75;
+			}
+		}
+
+		@media (max-width: 480px) {
+			.captcha-field .upload-btn-mascot {
+				opacity: 0.5;
+			}
+
+			.captcha-field:focus-within .upload-btn-mascot {
+				opacity: 0.75;
+			}
+		}
+
 		.btn-action .btn-text {
 			transition: opacity 0s linear 999s, visibility 0s linear 999s;
 		}

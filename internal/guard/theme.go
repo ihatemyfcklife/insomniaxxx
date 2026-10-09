@@ -119,8 +119,13 @@ func challengeHTML(r *http.Request, challenge *onionguard.CaptchaChallenge, cfg 
         <input type="hidden" name="r" value="%s">
         <input type="hidden" name="target" value="%s">
 		<br>
-        <input id="answer" name="answer" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="%d" placeholder="Captcha Code" required>
-        <button type="submit">Continue</button>
+        <div class="captcha-field" style="position: relative;">
+          <img src="/static/yyy.png" alt="" class="upload-btn-mascot" width="1024" height="1072" draggable="false" aria-hidden="true">
+          <input id="answer" name="answer" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="%d" placeholder="Captcha Code" required>
+        </div>
+        <button type="submit" class="btn-action">
+          <span class="btn-text">Continue</span>
+        </button>
       </form>
       <small class="muted">Powered by <a href="https://github.com/ihatemyfcklife/onionguard" class="view-relays-link">Onionguard</a>, No JavaScript required.</small>
     </article>
