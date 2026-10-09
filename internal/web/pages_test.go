@@ -114,7 +114,7 @@ func TestFooterHTML(t *testing.T) {
 	if html == "" {
 		t.Fatal("FooterHTML returned empty string")
 	}
-	for _, needle := range []string{`class="site-footer"`, `class="footer-author"`, `Made by`, `ihatemyfcklife`} {
+	for _, needle := range []string{`class="site-footer"`, `class="footer-author"`, `Made by`, `ihatemyfcklife`, `app-version`} {
 		if !strings.Contains(html, needle) {
 			t.Fatalf("FooterHTML missing %q", needle)
 		}

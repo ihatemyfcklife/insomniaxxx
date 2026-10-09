@@ -93,7 +93,7 @@ jobs:
         run: |
           mkdir -p dist
           TAG="${{ steps.tag.outputs.tag }}"
-          LDFLAGS="-s -w -X main.version=$TAG"
+          LDFLAGS="-s -w -X anonblossom/internal/web.Version=$TAG"
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="$LDFLAGS" -o dist/anonblossom-linux-amd64 ./cmd/anonblossom
           CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="$LDFLAGS" -o dist/anonblossom-linux-arm64 ./cmd/anonblossom
           cp internal/app/static/app.wasm dist/app.wasm

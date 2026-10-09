@@ -27,7 +27,7 @@ func LogoHTML() string {
 			return
 		}
 		var buf bytes.Buffer
-		if err := t.ExecuteTemplate(&buf, "logo", nil); err == nil {
+		if err := t.ExecuteTemplate(&buf, "logo", map[string]any{"Version": AppVersion()}); err == nil {
 			logoHTML = buf.String()
 		}
 	})
@@ -42,7 +42,7 @@ func FooterHTML() string {
 			return
 		}
 		var buf bytes.Buffer
-		if err := t.ExecuteTemplate(&buf, "footer", nil); err == nil {
+		if err := t.ExecuteTemplate(&buf, "footer", map[string]any{"Version": AppVersion()}); err == nil {
 			footerHTML = buf.String()
 		}
 	})
@@ -62,6 +62,7 @@ type RelayView struct {
 // PageData is the data rendered into the public pages.
 type PageData struct {
 	Title        string
+	Version      string
 	Error        string
 	StatusCode   int
 	ErrorTitle   string
@@ -84,6 +85,14 @@ type PageData struct {
 	QRCode       template.HTML
 	ThemeCSS     template.CSS
 	Relays       []RelayView
+}
+
+// withVersion injecte la version binaire si absente (rendu 100% serveur, sans JS).
+func withVersion(data PageData) PageData {
+	if data.Version == "" {
+		data.Version = AppVersion()
+	}
+	return data
 }
 
 // Pages renders the embedded server-side HTML templates.
@@ -111,6 +120,7 @@ func NewPages() (*Pages, error) {
 }
 
 func (p *Pages) Home(w http.ResponseWriter, data PageData) error {
+	data = withVersion(data)
 	if data.ThemeCSS == "" {
 		data.ThemeCSS = template.CSS(PicoThemeCSS)
 	}
@@ -118,6 +128,7 @@ func (p *Pages) Home(w http.ResponseWriter, data PageData) error {
 }
 
 func (p *Pages) Done(w http.ResponseWriter, data PageData) error {
+	data = withVersion(data)
 	if data.ThemeCSS == "" {
 		data.ThemeCSS = template.CSS(PicoThemeCSS)
 	}
@@ -125,6 +136,7 @@ func (p *Pages) Done(w http.ResponseWriter, data PageData) error {
 }
 
 func (p *Pages) View(w http.ResponseWriter, data PageData) error {
+	data = withVersion(data)
 	if data.ThemeCSS == "" {
 		data.ThemeCSS = template.CSS(PicoThemeCSS)
 	}
@@ -132,6 +144,7 @@ func (p *Pages) View(w http.ResponseWriter, data PageData) error {
 }
 
 func (p *Pages) Relays(w http.ResponseWriter, data PageData) error {
+	data = withVersion(data)
 	if data.ThemeCSS == "" {
 		data.ThemeCSS = template.CSS(PicoThemeCSS)
 	}
@@ -139,6 +152,7 @@ func (p *Pages) Relays(w http.ResponseWriter, data PageData) error {
 }
 
 func (p *Pages) Error(w http.ResponseWriter, data PageData) error {
+	data = withVersion(data)
 	if data.StatusCode == 0 {
 		data.StatusCode = http.StatusNotFound
 	}
