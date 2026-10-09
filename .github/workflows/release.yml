@@ -17,11 +17,6 @@ permissions:
 jobs:
   tag-and-release:
     runs-on: ubuntu-latest
-    # Pas de release pour les PRs du bot deps ni les commits [skip release]/[no-tag]
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (!contains(github.event.head_commit.message, '[skip release]') &&
-       !contains(github.event.head_commit.message, '[no-tag]'))
     steps:
       - uses: actions/checkout@v4
         with:
@@ -36,10 +31,21 @@ jobs:
       - name: Determine version bump
         id: bump
         run: |
-          MSG="${{ github.event.head_commit.message }}"
+          MSG="$(git log -1 --pretty=%B)"
+          echo "Commit: $MSG"
           INPUT="${{ inputs.bump }}"
           if [ "$INPUT" != "" ] && [ "$INPUT" != "auto" ]; then
             echo "bump=$INPUT" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if echo "$MSG" | grep -qiE "\[skip release\]|\[skip tag\]|\[no-tag\]"; then
+            echo "Skip directive detected, skipping release."
+            echo "bump=skip" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git tag --points-at HEAD | grep -qE "^v[0-9]+\.[0-9]+\.[0-9]+$"; then
+            echo "HEAD already tagged, skipping."
+            echo "bump=skip" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           if echo "$MSG" | grep -qiE "BREAKING CHANGE|feat!:"; then
@@ -49,10 +55,10 @@ jobs:
           else
             echo "bump=patch" >> "$GITHUB_OUTPUT"
           fi
-          echo "Commit: $MSG"
 
       - name: Compute next tag
         id: tag
+        if: steps.bump.outputs.bump != 'skip'
         run: |
           git fetch --tags
           # Si le push est déjà un tag v* (release manuelle), on le réutilise tel quel.
@@ -80,7 +86,10 @@ jobs:
           echo "major=$MAJOR" >> "$GITHUB_OUTPUT"
 
       - name: Create and push tag
+        if: steps.bump.outputs.bump != 'skip'
         run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           TAG="${{ steps.tag.outputs.tag }}"
           if git rev-parse "$TAG" >/dev/null 2>&1; then
             echo "Tag $TAG already exists, skipping."
@@ -90,6 +99,7 @@ jobs:
           fi
 
       - name: Build static assets (pico + wasm)
+        if: steps.bump.outputs.bump != 'skip'
         run: |
           mkdir -p internal/app/static
           [ -f internal/app/static/pico.min.css ] || curl -sSL -o internal/app/static/pico.min.css https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.fuchsia.min.css
@@ -98,6 +108,7 @@ jobs:
           GOOS=js GOARCH=wasm go build -trimpath -ldflags='-s -w' -o internal/app/static/app.wasm ./cmd/wasm
 
       - name: Build release binaries
+        if: steps.bump.outputs.bump != 'skip'
         run: |
           mkdir -p dist
           TAG="${{ steps.tag.outputs.tag }}"
@@ -110,6 +121,7 @@ jobs:
           ls -la dist/
 
       - name: Publish GitHub Release
+        if: steps.bump.outputs.bump != 'skip'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
