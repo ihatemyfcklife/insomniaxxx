@@ -70,10 +70,29 @@ func waitRoomHTML(_ *http.Request, retry time.Duration) string {
 
 func challengeHTML(r *http.Request, challenge *onionguard.CaptchaChallenge, cfg onionguard.CaptchaConfig) string {
 	target := "/"
-	if r != nil && r.URL != nil {
-		raw := r.URL.Query().Get("target")
-		if strings.HasPrefix(raw, "/") && !strings.HasPrefix(raw, "//") && !strings.Contains(raw, "\\") {
-			target = raw
+	if r != nil {
+		if r.URL != nil && r.URL.Path != cfg.EndpointPath {
+			// Premier affichage : on garde l'URL d'origine demandée (/d/...).
+			// Reproduit la logique du middleware OnionGuard qui utilise RequestURI.
+			raw := r.URL.RequestURI()
+			if raw == "" {
+				raw = "/"
+			}
+			target = sanitizeChallengeTarget(raw)
+		} else {
+			// Ré-affichage depuis l'endpoint (erreur de saisie) : reprendre le
+			// champ du formulaire, `r` en priorité comme le middleware.
+			raw := r.FormValue("r")
+			if raw == "" {
+				raw = r.FormValue("target")
+			}
+			if raw == "" && r.URL != nil {
+				raw = r.URL.Query().Get("r")
+			}
+			if raw == "" && r.URL != nil {
+				raw = r.URL.Query().Get("target")
+			}
+			target = sanitizeChallengeTarget(raw)
 		}
 	}
 
@@ -97,6 +116,7 @@ func challengeHTML(r *http.Request, challenge *onionguard.CaptchaChallenge, cfg 
       <p class="muted">One small check before continuing.</p>
       <img src="%s" alt="CAPTCHA challenge" width="%d" height="%d">
       <form action="%s" method="post">
+        <input type="hidden" name="r" value="%s">
         <input type="hidden" name="target" value="%s">
 		<br>
         <input id="answer" name="answer" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="%d" placeholder="Captcha Code" required>
@@ -107,7 +127,29 @@ func challengeHTML(r *http.Request, challenge *onionguard.CaptchaChallenge, cfg 
     %s
   </main>
 </body>
-</html>`, pageTitle, web.PicoThemeCSS, web.LogoHTML(), html.EscapeString(challenge.ImageDataURI), cfg.Width, cfg.Height, html.EscapeString(cfg.EndpointPath), html.EscapeString(target), cfg.Length, web.FooterHTML())
+</html>`, pageTitle, web.PicoThemeCSS, web.LogoHTML(), html.EscapeString(challenge.ImageDataURI), cfg.Width, cfg.Height, html.EscapeString(cfg.EndpointPath), html.EscapeString(target), html.EscapeString(target), cfg.Length, web.FooterHTML())
+}
+
+// sanitizeChallengeTarget reprend les règles du middleware OnionGuard :
+// chemin absolu interne uniquement, pas de //, pas de backslash,
+// pas de caractères de contrôle (anti open-redirect / header injection).
+func sanitizeChallengeTarget(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "/"
+	}
+	if !strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, "//") {
+		return "/"
+	}
+	if strings.Contains(raw, "\\") {
+		return "/"
+	}
+	for i := 0; i < len(raw); i++ {
+		if raw[i] < 32 || raw[i] == 127 {
+			return "/"
+		}
+	}
+	return raw
 }
 
 func errorHTML(_ *http.Request, err *onionguard.AdmissionError) string {
