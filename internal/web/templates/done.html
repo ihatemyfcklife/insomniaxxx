@@ -1,0 +1,63 @@
+{{define "done.html"}}
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>{{.Title}} · ready</title>
+  {{template "head" .}}
+</head>
+<body>
+  <main class="container">
+    {{template "logo" .}}
+    <header>
+      <h1>Ready</h1>
+      <p class="muted">Your encrypted file is ready to share.</p>
+    </header>
+
+    <article class="success" role="status">
+      <div class="share-box">
+        <figure class="share-qr">{{.QRCode}}</figure>
+        <div class="share-details">
+          <div class="meta-item">
+            <small class="muted">File</small>
+            <strong>{{.FileName}}</strong>
+          </div>
+          <div class="meta-item">
+            <small class="muted">Size</small>
+            <span>{{.FileSize}}</span>
+          </div>
+          {{if .BlobHash}}
+          <div class="meta-item">
+            <small class="muted">SHA-256 (Ciphertext)</small>
+            <code>{{.BlobHash}}</code>
+          </div>
+          {{end}}
+          {{if .Key}}
+          <div class="meta-item">
+            <small class="muted">Encryption Key</small>
+            <code>{{.Key}}</code>
+          </div>
+          {{end}}
+        </div>
+      </div>
+    </article>
+
+    <label for="share">Share link</label>
+    <input id="share" value="{{.ShareURL}}" readonly>
+
+    <div class="grid">
+      <a role="button" href="{{.ShareURL}}" class="btn-action"><span class="btn-text">Download / Preview</span><span class="btn-loading"><span class="btn-spinner" aria-hidden="true"></span>Decrypting &amp; Loading...</span></a>
+      <a role="button" class="secondary" href="/">Share another</a>
+    </div>
+
+    <div class="share-note">
+      <small class="muted">The link contains the decryption secret. No accounts or share records are stored.</small>
+    </div>
+
+    {{template "footer" .}}
+  </main>
+</body>
+</html>
+{{end}}

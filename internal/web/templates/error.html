@@ -1,0 +1,39 @@
+{{define "error.html"}}
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>{{.StatusCode}} · {{.ErrorTitle}} · {{.Title}}</title>
+  {{template "head" .}}
+</head>
+<body>
+  <main class="container">
+    {{template "logo" .}}
+
+    <article class="error-card" role="alert">
+      <div class="error-code">{{.StatusCode}}</div>
+      <h1 class="error-title">{{.ErrorTitle}}</h1>
+      <p class="error-message">{{.ErrorMessage}}</p>
+      {{if .ErrorDetail}}
+      <div class="error-detail-box">
+        <code class="error-detail">{{.ErrorDetail}}</code>
+      </div>
+      {{end}}
+    </article>
+
+    <div class="grid">
+      <a role="button" href="/">Return to Home</a>
+      <a role="button" class="secondary" href="/relays">View Blossom Relays</a>
+    </div>
+
+    <div class="error-note">
+      <small class="muted">Anonymous & encrypted file sharing · Zero Knowledge</small>
+    </div>
+
+    {{template "footer" .}}
+  </main>
+</body>
+</html>
+{{end}}

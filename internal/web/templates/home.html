@@ -1,0 +1,112 @@
+{{define "home.html"}}
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>{{.Title}}</title>
+  {{template "head" .}}
+</head>
+<body>
+  <main class="container">
+    {{template "logo" .}}
+
+    {{if .Error}}
+      <article role="alert">{{.Error}}</article>
+    {{end}}
+
+    <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
+      <label for="file">Upload File:</label>
+      <input id="file" name="file" type="file" required>
+      <button type="submit" id="submitBtn" class="btn-action">
+        <img src="/static/xxx.png" alt="" class="upload-btn-mascot" width="1024" height="1072" draggable="false" aria-hidden="true">
+        <span class="btn-text">Upload</span>
+        <span class="btn-loading"><span class="btn-spinner" aria-hidden="true"></span>Uploading &amp; Encrypting...</span>
+      </button>
+      <small id="wasmStatus" class="muted"></small>
+    </form>
+
+    <div class="upload-note">
+      <small class="muted">Maximum upload size: {{.MaxUpload}}. Encrypted across public Blossom instances · <a href="/relays" class="view-relays-link">View Relays</a></small>
+    </div>
+
+    <figure class="architecture-figure">
+      <img id="architectureImg" src="/static/architecture-nojs.png" alt="How insomniaXXX works architecture diagram" width="880" height="460" loading="eager">
+    </figure>
+
+    <article class="architecture-card">
+      <div class="architecture-header">
+        <h2 id="architecture-heading">How <span class="brand-text">InsomniaXXX</span> Works</h2>
+        <div id="modeToggle" role="group" class="mode-toggle" style="display:none;">
+          <button type="button" id="btnModeNoJS">No-JS Mode</button>
+          <button type="button" id="btnModeWasm" class="outline">Zero-Knowledge (Wasm)</button>
+        </div>
+      </div>
+
+      <!-- No-JS Mode Details (Active by default for Tor Safest / Zero-JS) -->
+      <div id="architectureDetailsNoJS" class="architecture-details">
+        <p class="architecture-intro muted">
+          <strong>No-JS Mode (Tor Safest / Standard HTML)</strong>: <strong>onionguard</strong> guards the gateway entrance, while the server encrypts and shards files across decentralized Blossom relays without running any client-side JavaScript:
+        </p>
+        <ul class="library-links">
+          <li>
+            <a href="https://github.com/ihatemyfcklife/onionguard" target="_blank" rel="noopener noreferrer"><code>onionguard</code></a>:
+            Ingress Proof-of-Work admission checkpoint and adaptive DDoS rate limiter defending gateways and Tor hidden services without CAPTCHA tracking.
+          </li>
+          <li>
+            <a href="https://github.com/ihatemyfcklife/badcrypt" target="_blank" rel="noopener noreferrer"><code>badcrypt</code></a>:
+            Authenticated encryption (XChaCha20-Poly1305 AEAD). The server encrypts files server-side with a unique 256-bit key embedded in the share link (<code>/d/&lt;hash&gt;/&lt;key&gt;</code>).
+          </li>
+          <li>
+            <a href="https://github.com/ihatemyfcklife/badrlnc" target="_blank" rel="noopener noreferrer"><code>badrlnc</code></a>:
+            Random Linear Network Coding (RLNC) over GF(2<sup>8</sup>). Encrypted payloads are partitioned into innovative erasure-coded shards distributed across surviving relays.
+          </li>
+          <li>
+            <a href="https://fiatjaf.com/nostr" target="_blank" rel="noopener noreferrer"><code>fiatjaf/nostr</code></a>:
+            Real-time decentralized Blossom relay discovery via Nostr BUD-04 (kind 10063) network events.
+          </li>
+          <li>
+            <a href="https://github.com/skip2/go-qrcode" target="_blank" rel="noopener noreferrer"><code>go-qrcode</code></a>:
+            Self-contained offline QR code generation for peer-to-peer mobile transfer with zero external tracking.
+          </li>
+        </ul>
+      </div>
+
+      <!-- Wasm Mode Details (Activated when WebAssembly initializes) -->
+      <div id="architectureDetailsWasm" class="architecture-details" style="display:none;">
+        <p class="architecture-intro muted">
+          <strong>Zero-Knowledge Mode (WebAssembly Active)</strong>: <strong>onionguard</strong> defends ingress endpoints, while cryptographic keys, AEAD encryption, and RLNC coding run 100% locally inside your browser via WebAssembly:
+        </p>
+        <ul class="library-links">
+          <li>
+            <a href="https://github.com/ihatemyfcklife/onionguard" target="_blank" rel="noopener noreferrer"><code>onionguard</code></a>:
+            Ingress Proof-of-Work admission checkpoint and adaptive DDoS rate limiter defending gateways and Tor hidden services without CAPTCHA tracking.
+          </li>
+          <li>
+            <a href="https://github.com/ihatemyfcklife/badcrypt" target="_blank" rel="noopener noreferrer"><code>badcrypt</code></a>:
+            Authenticated streaming encryption (XChaCha20-Poly1305 AEAD) running client-side. The 256-bit encryption key remains strictly in the browser's URL fragment (<code>#key</code>) and is never transmitted over the wire.
+          </li>
+          <li>
+            <a href="https://github.com/ihatemyfcklife/badrlnc" target="_blank" rel="noopener noreferrer"><code>badrlnc</code></a>:
+            Random Linear Network Coding (RLNC) over GF(2<sup>8</sup>) running in WebAssembly. Shards are computed locally in-browser and decoded via Gauss-Jordan elimination upon download.
+          </li>
+          <li>
+            <a href="https://fiatjaf.com/nostr" target="_blank" rel="noopener noreferrer"><code>fiatjaf/nostr</code></a>:
+            Real-time decentralized Blossom relay discovery via Nostr BUD-04 (kind 10063) network events.
+          </li>
+          <li>
+            <a href="https://github.com/skip2/go-qrcode" target="_blank" rel="noopener noreferrer"><code>go-qrcode</code></a>:
+            Self-contained offline QR code generation for peer-to-peer mobile transfer with zero external tracking.
+          </li>
+        </ul>
+      </div>
+    </article>
+
+    {{template "footer" .}}
+  </main>
+  <script src="/static/wasm_exec.js"></script>
+  <script src="/static/boot.js"></script>
+</body>
+</html>
+{{end}}

@@ -1,0 +1,97 @@
+{{define "view.html"}}
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>{{.FileName}} · {{.Title}}</title>
+  {{template "head" .}}
+</head>
+<body>
+  <main class="container">
+    {{template "logo" .}}
+    {{if .ZK}}
+      <!-- Écran de chargement ZK : affiché pendant le chargement du manifeste, des shards et du déchiffrement -->
+      <section id="zkLoader" class="zk-loading-container" aria-live="polite">
+        <noscript>
+          <article role="alert">
+            <p>Ce fichier a été partagé en mode Zero-Knowledge (chiffrement local). Le déchiffrement nécessite l'activation de JavaScript / WebAssembly.</p>
+          </article>
+        </noscript>
+        <div class="zk-loading-card" id="zkVisual">
+          <img src="/static/loading.gif" alt="Loading" class="zk-loading-gif" id="zkSpinner" width="192" height="192">
+        </div>
+        <div class="zk-loading-content">
+          <h2 id="zkStatusTitle" class="zk-loading-status">Zero-Knowledge Decryption</h2>
+          <p id="zkStatus" class="zk-loading-sub">Initializing cryptographic environment…</p>
+        </div>
+      </section>
+
+      <!-- Section de prévisualisation : masquée tant que les shards ne sont pas décodés et le média déchiffré -->
+      <div id="zkContent" style="display: none;">
+        <header>
+          <h1 id="previewName">{{.FileName}}</h1>
+          <p class="muted"><span id="previewSize">{{.FileSize}}</span> · <code id="previewType">{{.FileType}}</code></p>
+        </header>
+
+        <article id="previewBox" class="preview-box" role="region" aria-label="Media Preview">
+          <div class="no-preview muted">
+            <p>No preview available for this file format.</p>
+          </div>
+        </article>
+
+        <div class="grid">
+          <a role="button" id="zkDownload" href="#" style="display:none" class="btn-action"><span class="btn-text">Download</span><span class="btn-loading"><span class="btn-spinner" aria-hidden="true"></span>Downloading...</span></a>
+          <a role="button" class="secondary" href="/">Upload a file</a>
+        </div>
+
+        <div class="view-note">
+          <small class="muted">Decrypted locally in your browser. The secret key never left your device.</small>
+        </div>
+      </div>
+
+    {{else}}
+      <!-- Mode standard serveur (Tor Safest) -->
+      <header>
+        <h1 id="previewName">{{.FileName}}</h1>
+        <p class="muted"><span id="previewSize">{{.FileSize}}</span> · <code id="previewType">{{.FileType}}</code></p>
+      </header>
+
+      <article id="previewBox" class="preview-box" role="region" aria-label="Media Preview">
+        {{if .IsImage}}
+          <img class="preview-media" src="{{.RawURL}}" alt="{{.FileName}}">
+        {{else if .IsVideo}}
+          <video class="preview-media" controls preload="metadata" src="{{.RawURL}}">
+            Your browser does not support the video tag.
+          </video>
+        {{else if .IsAudio}}
+          <audio class="preview-audio" controls preload="metadata" src="{{.RawURL}}">
+            Your browser does not support the audio tag.
+          </audio>
+        {{else}}
+          <div class="no-preview muted">
+            <p>No preview available for this file format.</p>
+          </div>
+        {{end}}
+      </article>
+
+      <div class="grid">
+        <a role="button" href="{{.DownloadURL}}" class="btn-action"><span class="btn-text">Download ({{.FileSize}})</span><span class="btn-loading"><span class="btn-spinner" aria-hidden="true"></span>Decrypting &amp; Downloading...</span></a>
+        <a role="button" class="secondary" href="/">Upload a file</a>
+      </div>
+
+      <div class="view-note">
+        <small class="muted">Decrypted on the fly. No tracking or accounts stored.</small>
+      </div>
+    {{end}}
+
+    {{template "footer" .}}
+  </main>
+  {{if .ZK}}
+  <script src="/static/wasm_exec.js"></script>
+  <script src="/static/view.js" data-cipher="{{.CipherURL}}"></script>
+  {{end}}
+</body>
+</html>
+{{end}}

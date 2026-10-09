@@ -1,0 +1,81 @@
+{{define "relays.html"}}
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Relays · {{.Title}}</title>
+  {{template "head" .}}
+</head>
+<body>
+  <main class="container">
+    {{template "logo" .}}
+    <header>
+      <h1>Blossom Relays</h1>
+      <p class="muted">Active storage instances discovered and monitored across Nostr.</p>
+    </header>
+
+    <article class="relays-card">
+      <div class="relays-table-wrapper">
+        <table class="relays-table" role="grid">
+          <thead>
+            <tr>
+              <th scope="col">Server</th>
+              <th scope="col">Status</th>
+              <th scope="col">Latency</th>
+              <th scope="col">Source</th>
+              <th scope="col">Last Check</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{range .Relays}}
+            <tr class="relay-row">
+              <td class="relay-server">
+                <div class="relay-url-box">
+                  <a href="{{.URL}}" target="_blank" rel="noopener noreferrer" class="relay-url">{{.URL}}</a>
+                </div>
+              </td>
+              <td class="relay-status">
+                {{if .Blacklisted}}
+                  <span class="relay-badge blacklisted">Blacklisted</span>
+                {{else if .Online}}
+                  <span class="relay-badge online">Online</span>
+                {{else}}
+                  <span class="relay-badge offline">Offline</span>
+                {{end}}
+              </td>
+              <td class="relay-latency">
+                <span class="relay-latency-val">{{.Latency}}</span>
+              </td>
+              <td class="relay-source">
+                <small class="muted">{{.Source}}</small>
+              </td>
+              <td class="relay-check">
+                <small class="muted">{{.LastCheck}}</small>
+              </td>
+            </tr>
+            {{else}}
+            <tr>
+              <td colspan="5" class="empty-relays muted">No relays registered.</td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <div class="grid">
+      <a role="button" href="/">Back</a>
+      <a role="button" class="secondary" href="/relays">Refresh</a>
+    </div>
+
+    <div class="relays-note">
+      <small class="muted">Auto-discovered via Nostr BUD-04 (kind 10063). Healthy instances are used for storage redundancy.</small>
+    </div>
+
+    {{template "footer" .}}
+  </main>
+</body>
+</html>
+{{end}}

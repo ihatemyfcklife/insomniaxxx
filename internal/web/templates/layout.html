@@ -1,0 +1,25 @@
+{{define "head"}}
+<link rel="icon" type="image/png" href="/static/favicon.png">
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="stylesheet" href="/static/pico.min.css">
+<style>{{.ThemeCSS}}</style>
+{{end}}
+
+{{define "logo"}}
+<div class="logo-box">
+  <a href="/" class="logo-link" aria-label="Home">
+    <img src="/static/logo.png" alt="InsomniaXXX" class="site-logo" width="1475" height="221" loading="eager" draggable="false">
+  </a>
+</div>
+<header>
+  <p class="muted">Anonymous file sharing. No accounts. No logs. Decentralized.</p>
+</header>
+{{end}}
+
+{{define "footer"}}
+<footer class="site-footer">
+  <div class="footer-author">
+    <small class="muted">Made by <a href="https://github.com/ihatemyfcklife" target="_blank" rel="noopener noreferrer">ihatemyfcklife</a> - <a href="#" target="_blank" rel="noopener noreferrer">PGP</a> - <a href="#" target="_blank" rel="noopener noreferrer">Contact</a> - <a href="#" target="_blank" rel="noopener noreferrer">ads</a></small>
+  </div>
+</footer>
+{{end}}
