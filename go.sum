@@ -1,5 +1,5 @@
-fiatjaf.com/nostr v0.0.0-20260928115942-58e4c715304e h1:ZHPQsQzd0rGdOq/vCMUOy9FfrzlmAxvQ+V+4ucJ1WXY=
-fiatjaf.com/nostr v0.0.0-20260928115942-58e4c715304e/go.mod h1:b1EIUDnd133Ie8Pg8O/biaKdFyCMz28aD4n64g1GqvM=
+fiatjaf.com/nostr v0.0.0-20261005012418-685c38fc6629 h1:Y0BghPa4aYypMMinVv9R5n76k4GHyoxRXCWnj44XW9c=
+fiatjaf.com/nostr v0.0.0-20261005012418-685c38fc6629/go.mod h1:b1EIUDnd133Ie8Pg8O/biaKdFyCMz28aD4n64g1GqvM=
 filippo.io/edwards25519 v1.2.0 h1:crnVqOiS4jqYleHd9vaKZ+HKtHfllngJIiOpNpoJsjo=
 filippo.io/edwards25519 v1.2.0/go.mod h1:xzAOLCNug/yB62zG1bQ8uziwrIqIuxhctzJT18Q77mc=
 github.com/ImVexed/fasturl v0.0.0-20230304231329-4e41488060f3 h1:ClzzXMDDuUbWfNNZqGeYq4PnYOlwlOVIvSyNaIy0ykg=
@@ -31,8 +31,8 @@ github.com/ihatemyfcklife/badcrypt v1.0.3 h1:oxyhGWiukQgFlwK2tU+gOHrYtFD89Pqr/4j
 github.com/ihatemyfcklife/badcrypt v1.0.3/go.mod h1:FthevZWRQRNXAeLh7r9JWjPFw9YFFwsMrY4HnvdYiTs=
 github.com/ihatemyfcklife/badrlnc v1.2.0 h1:8Kb7S5WNbSCF+w3hsy/yZ1M+gda/BN89cAukAPE0SnQ=
 github.com/ihatemyfcklife/badrlnc v1.2.0/go.mod h1:BHT5BE+Hx95udX1uf3FF0vQM0MyLWKVVXHkFhSHbdZ8=
-github.com/ihatemyfcklife/onionguard v1.2.0 h1:FTiiuWzpfyYhGORM0uj64NENVMdO2tKFIKGVLgzyHkE=
-github.com/ihatemyfcklife/onionguard v1.2.0/go.mod h1:UAqYTEHw19g8UHTvwXQFObQdQ+vJ153LmO1WX//20mE=
+github.com/ihatemyfcklife/onionguard v1.2.1 h1:R+hVqbN5zn1ghVH+vKuWVsRTK0B0a71eF+LEXTpnjaM=
+github.com/ihatemyfcklife/onionguard v1.2.1/go.mod h1:UAqYTEHw19g8UHTvwXQFObQdQ+vJ153LmO1WX//20mE=
 github.com/josharian/intern v1.0.0 h1:vlS4z54oSdjm0bgjRigI+G1HpF+tI+9rE5LLzOg8HmY=
 github.com/josharian/intern v1.0.0/go.mod h1:5DoeVV0s6jJacbCEi61lwdGj/aVlrQvzHFFd8Hwg//Y=
 github.com/json-iterator/go v1.1.12 h1:PV8peI4a0ysnczrg+LtxykD8LfKY9ML6u2jnxaEnrnM=

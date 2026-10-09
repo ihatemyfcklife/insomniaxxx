@@ -3,10 +3,10 @@ module anonblossom
 go 1.25
 
 require (
-	fiatjaf.com/nostr v0.0.0-20260928115942-58e4c715304e
+	fiatjaf.com/nostr v0.0.0-20261005012418-685c38fc6629
 	github.com/ihatemyfcklife/badcrypt v1.0.3
 	github.com/ihatemyfcklife/badrlnc v1.2.0
-	github.com/ihatemyfcklife/onionguard v1.2.0
+	github.com/ihatemyfcklife/onionguard v1.2.1
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 )
 
