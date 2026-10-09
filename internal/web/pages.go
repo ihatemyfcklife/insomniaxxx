@@ -5,48 +5,37 @@ import (
 	"embed"
 	"html/template"
 	"net/http"
-	"sync"
 )
 
 //go:embed templates/*.html
 var templateFS embed.FS
 
-var (
-	logoOnce sync.Once
-	logoHTML string
-
-	footerOnce sync.Once
-	footerHTML string
-)
-
 // LogoHTML returns the rendered HTML of the responsive ASCII logo.
 func LogoHTML() string {
-	logoOnce.Do(func() {
-		t, err := template.ParseFS(templateFS, "templates/*.html")
-		if err != nil {
-			return
-		}
-		var buf bytes.Buffer
-		if err := t.ExecuteTemplate(&buf, "logo", map[string]any{"Version": AppVersion()}); err == nil {
-			logoHTML = buf.String()
-		}
-	})
-	return logoHTML
+	t, err := template.ParseFS(templateFS, "templates/*.html")
+	if err != nil {
+		return ""
+	}
+	var buf bytes.Buffer
+	if err := t.ExecuteTemplate(&buf, "logo", map[string]any{"Version": AppVersion()}); err != nil {
+		return ""
+	}
+	return buf.String()
 }
 
-// FooterHTML returns the rendered HTML of the site footer.
+// FooterHTML returns the rendered HTML of the site footer, with the current
+// build version. Rendered on each call (no cache) so APP_VERSION or test
+// overrides are always reflected.
 func FooterHTML() string {
-	footerOnce.Do(func() {
-		t, err := template.ParseFS(templateFS, "templates/*.html")
-		if err != nil {
-			return
-		}
-		var buf bytes.Buffer
-		if err := t.ExecuteTemplate(&buf, "footer", map[string]any{"Version": AppVersion()}); err == nil {
-			footerHTML = buf.String()
-		}
-	})
-	return footerHTML
+	t, err := template.ParseFS(templateFS, "templates/*.html")
+	if err != nil {
+		return ""
+	}
+	var buf bytes.Buffer
+	if err := t.ExecuteTemplate(&buf, "footer", map[string]any{"Version": AppVersion()}); err != nil {
+		return ""
+	}
+	return buf.String()
 }
 
 type RelayView struct {

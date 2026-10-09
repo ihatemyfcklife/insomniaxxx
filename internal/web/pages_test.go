@@ -121,6 +121,46 @@ func TestFooterHTML(t *testing.T) {
 	}
 }
 
+func TestFooterVersionAutoUpdate(t *testing.T) {
+	oldVersion, hadVersion := Version, Version != ""
+	oldEnv, hadEnv := os.LookupEnv("APP_VERSION")
+	defer func() {
+		Version = ""
+		if !hadVersion {
+			Version = ""
+		} else {
+			Version = oldVersion
+		}
+		if hadEnv {
+			_ = os.Setenv("APP_VERSION", oldEnv)
+		} else {
+			_ = os.Unsetenv("APP_VERSION")
+		}
+	}()
+
+	Version = "v9.9.9-test"
+	_ = os.Unsetenv("APP_VERSION")
+	if got := AppVersion(); got != "v9.9.9-test" {
+		t.Fatalf("AppVersion with ldflags = %q, want %q", got, "v9.9.9-test")
+	}
+	if html := FooterHTML(); !strings.Contains(html, "v9.9.9-test") {
+		t.Fatalf("FooterHTML does not contain updated version, got: %s", html)
+	}
+
+	// Changement à chaud sans redémarrage : le footer doit suivre.
+	Version = "v9.9.10-test"
+	if html := FooterHTML(); !strings.Contains(html, "v9.9.10-test") {
+		t.Fatalf("FooterHTML stale after version change, got: %s", html)
+	}
+
+	// Fallback env quand pas de ldflags.
+	Version = ""
+	_ = os.Setenv("APP_VERSION", "v1.2.3-env")
+	if html := FooterHTML(); !strings.Contains(html, "v1.2.3-env") {
+		t.Fatalf("FooterHTML does not honor APP_VERSION, got: %s", html)
+	}
+}
+
 func TestDumpHomePage(t *testing.T) {
 	pages, err := NewPages()
 	if err != nil {
