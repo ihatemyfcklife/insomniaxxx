@@ -12,7 +12,7 @@ run:
 	set -a; [ ! -f .env ] || . ./.env; set +a; go run ./cmd/anonblossom
 
 build: wasm
-	go build -o bin/anonblossom ./cmd/anonblossom
+	VERSION=$$(git describe --tags --abbrev=0 2>/dev/null || echo dev); go build -ldflags "-s -w -X anonblossom/internal/web.Version=$$VERSION" -o bin/anonblossom ./cmd/anonblossom
 
 test:
 	go test ./...

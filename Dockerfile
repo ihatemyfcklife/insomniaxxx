@@ -18,7 +18,9 @@ RUN cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" internal/app/static/wasm_exec.js
     GOOS=js GOARCH=wasm go build -trimpath -ldflags='-s -w' -o internal/app/static/app.wasm ./cmd/wasm
 
 # 2. Compilation du binaire serveur (qui embarque static/*)
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags='-s -w' -o /out/anonblossom ./cmd/anonblossom
+# Version auto : dernier tag git dispo pendant le build Docker.
+RUN TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo dev) && \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w -X anonblossom/internal/web.Version=$TAG" -o /out/anonblossom ./cmd/anonblossom
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /out/anonblossom /anonblossom
