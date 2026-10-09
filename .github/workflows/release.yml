@@ -3,6 +3,7 @@ name: release
 on:
   push:
     branches: [main]
+    tags: ["v*.*.*"]
   workflow_dispatch:
     inputs:
       bump:
@@ -54,6 +55,13 @@ jobs:
         id: tag
         run: |
           git fetch --tags
+          # Si le push est déjà un tag v* (release manuelle), on le réutilise tel quel.
+          if echo "${{ github.ref }}" | grep -qE '^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            TAG="${{ github.ref_name }}"
+            echo "Tag push detected: $TAG"
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           LAST=$(git tag --list 'v*.*.*' --sort=-v:refname | head -n1)
           [ -z "$LAST" ] && LAST="v0.0.0"
           echo "Last tag: $LAST"
