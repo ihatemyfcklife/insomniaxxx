@@ -17,16 +17,26 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.25"
+          go-version: stable
+          check-latest: true
           cache: true
 
       - name: Update all Go modules
         run: |
-          go get -u ./...
+          set -e
+          GO_VER=$(go version | awk '{print $3}' | sed 's/go//')
+          echo "Runner Go: $GO_VER"
+          # Monte les deps en restant compatible avec le Go du runner
+          go get -u -go="$GO_VER" ./... || go get -u ./...
+          # Si des deps exigent un Go plus récent, go mod tidy mettra go.mod à jour ;
+          # le runner étant déjà sur stable, le build suivra.
           go mod tidy
+          go build ./...
 
-      - name: Build check
-        run: go build ./...
+      - name: Build + test check
+        run: |
+          go vet ./...
+          go test ./...
 
       - name: Create PR if changed
         uses: peter-evans/create-pull-request@v7
