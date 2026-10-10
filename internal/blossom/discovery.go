@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -70,13 +71,18 @@ func cleanBlossomURL(raw string) (string, bool) {
 		return "", false
 	}
 
-	host := strings.ToLower(u.Hostname())
-	// Blocage SSRF (localhost, IP privées et domaines internes)
-	if host == "localhost" || host == "127.0.0.1" || host == "::1" ||
-		strings.HasSuffix(host, ".local") || strings.HasSuffix(host, ".internal") ||
-		strings.HasPrefix(host, "10.") || strings.HasPrefix(host, "192.168.") ||
-		(strings.HasPrefix(host, "172.") && len(host) >= 7) {
+	host := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
+	if host == "" {
 		return "", false
+	}
+	// Reject special-use destinations before adding the URL to the discovery pool.
+	if ip := net.ParseIP(host); ip != nil && !isPublicRelayIP(ip) {
+		return "", false
+	}
+	for _, suffix := range []string{".localhost", ".local", ".internal", ".lan", ".home.arpa"} {
+		if host == strings.TrimPrefix(suffix, ".") || strings.HasSuffix(host, suffix) {
+			return "", false
+		}
 	}
 
 	return fmt.Sprintf("%s://%s", u.Scheme, u.Host), true
@@ -87,6 +93,11 @@ func (c *Client) checkServerHealth(ctx context.Context, status *ServerStatus) {
 	reqCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
+	if err := relayURLAllowed(reqCtx, status.URL, c.allowPrivateRelays); err != nil {
+		c.recordHealth(status, 0, false)
+		return
+	}
+
 	start := time.Now()
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, status.URL, nil)
 	if err != nil {
@@ -95,7 +106,7 @@ func (c *Client) checkServerHealth(ctx context.Context, status *ServerStatus) {
 	}
 	req.Header.Set("User-Agent", c.UserAgent)
 
-	resp, err := c.HTTP.Do(req)
+	resp, err := c.safeHTTP.Do(req)
 	if err != nil {
 		c.recordHealth(status, 0, false)
 		return
