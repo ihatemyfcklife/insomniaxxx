@@ -10,7 +10,13 @@ import (
 	"anonblossom/internal/cryptbox"
 )
 
+const (
+	maxPlainCacheBytes   int64 = 128 << 20
+	maxPlainCacheEntries       = 2
+)
+
 type cacheEntry struct {
+	size      int64
 	path      string
 	meta      cryptbox.FileMeta
 	expiresAt time.Time
@@ -25,6 +31,7 @@ type downloadCache struct {
 	stop      chan struct{}
 	closeOnce sync.Once
 	closed    bool
+	usedBytes int64
 }
 
 func newDownloadCache(ttl time.Duration) *downloadCache {
@@ -49,6 +56,7 @@ func (c *downloadCache) Close() {
 			}
 		}
 		c.entries = make(map[string]*cacheEntry)
+		c.usedBytes = 0
 	})
 }
 
@@ -72,6 +80,7 @@ func (c *downloadCache) cleaner() {
 						continue
 					}
 					delete(c.entries, key)
+					c.usedBytes -= entry.size
 					if entry.path != "" {
 						_ = os.Remove(entry.path)
 					}
@@ -113,7 +122,10 @@ func (c *downloadCache) GetOrDecrypt(
 		f, err := os.Open(entry.path)
 		if err != nil {
 			c.mu.Lock()
-			delete(c.entries, key)
+			if c.entries[key] == entry {
+				delete(c.entries, key)
+				c.usedBytes -= entry.size
+			}
 			c.mu.Unlock()
 			return nil, cryptbox.FileMeta{}, err
 		}
@@ -148,15 +160,57 @@ func (c *downloadCache) GetOrDecrypt(
 		c.mu.Unlock()
 		return nil, cryptbox.FileMeta{}, entry.err
 	}
-	entry.path = path
-	entry.meta = meta
+	info, statErr := os.Stat(path)
+	if statErr != nil || info.Size() < 0 || info.Size() > maxPlainCacheBytes {
+		_ = os.Remove(path)
+		entry.err = errors.New("decrypted file cannot fit in cache budget")
+		close(entry.ready)
+		delete(c.entries, key)
+		c.mu.Unlock()
+		return nil, cryptbox.FileMeta{}, entry.err
+	}
+	// Evict completed entries only. Never remove an in-progress decrypt.
+	for len(c.entries) > maxPlainCacheEntries || c.usedBytes+info.Size() > maxPlainCacheBytes {
+		var oldestKey string
+		var oldest *cacheEntry
+		for candidateKey, candidate := range c.entries {
+			if candidateKey == key || candidate.path == "" {
+				continue
+			}
+			select {
+			case <-candidate.ready:
+			default:
+				continue
+			}
+			if oldest == nil || candidate.expiresAt.Before(oldest.expiresAt) {
+				oldestKey, oldest = candidateKey, candidate
+			}
+		}
+		if oldest == nil {
+			_ = os.Remove(path)
+			entry.err = errors.New("decrypted cache capacity exhausted")
+			close(entry.ready)
+			delete(c.entries, key)
+			c.mu.Unlock()
+			return nil, cryptbox.FileMeta{}, entry.err
+		}
+		delete(c.entries, oldestKey)
+		c.usedBytes -= oldest.size
+		_ = os.Remove(oldest.path)
+	}
+	f, openErr := os.Open(path)
+	if openErr != nil {
+		_ = os.Remove(path)
+		entry.err = openErr
+		close(entry.ready)
+		delete(c.entries, key)
+		c.mu.Unlock()
+		return nil, cryptbox.FileMeta{}, openErr
+	}
+	entry.path, entry.size, entry.meta = path, info.Size(), meta
+	c.usedBytes += info.Size()
 	entry.expiresAt = time.Now().Add(c.ttl)
 	close(entry.ready)
 	c.mu.Unlock()
-
-	f, err := os.Open(entry.path)
-	if err != nil {
-		return nil, cryptbox.FileMeta{}, err
-	}
-	return f, entry.meta, nil
+	return f, meta, nil
 }

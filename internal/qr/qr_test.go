@@ -7,11 +7,11 @@ import (
 	"testing"
 )
 
-func TestImgReferencesPNGEndpoint(t *testing.T) {
+func TestImgEmbedsPNGWithoutLeakingKeyInURL(t *testing.T) {
 	img := string(Img("https://example.org/share/test"))
 	for _, needle := range []string{
 		`<img `,
-		`src="/qr?data=`,
+		`src="data:image/png;base64,`,
 		`alt="QR code"`,
 		`width="256"`,
 		`height="256"`,
@@ -19,6 +19,9 @@ func TestImgReferencesPNGEndpoint(t *testing.T) {
 		if !strings.Contains(img, needle) {
 			t.Fatalf("QR img missing %q", needle)
 		}
+	}
+	if strings.Contains(img, "/qr?data=") || strings.Contains(img, "https://example.org/share/test") {
+		t.Fatal("share key or URL leaked into an HTTP image source")
 	}
 	if strings.Contains(img, "<svg") {
 		t.Fatal("QR markup must not embed SVG (blocked in Tor Browser Safest mode)")

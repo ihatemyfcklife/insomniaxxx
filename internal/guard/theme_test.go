@@ -44,6 +44,9 @@ func TestGuardPagesRenderLogo(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			if !strings.Contains(tc.html, `/static/zk-fragment.js`) {
+				t.Fatalf("%s does not load key-continuity script", tc.name)
+			}
 			if !strings.Contains(tc.html, `class="logo-box"`) {
 				t.Fatalf("%s does not contain class=\"logo-box\"", tc.name)
 			}

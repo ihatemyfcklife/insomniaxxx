@@ -91,6 +91,22 @@ func TestClient_DistributedUploadAndInnovativeFetch(t *testing.T) {
 		t.Errorf("expected shards to be distributed across at least 2 relays, got %d", len(usedRelays))
 	}
 
+	// Every serialized shard must be present on at least two independent
+	// configured relay origins; simple round-robin placement is insufficient.
+	for _, hash := range shardHashes {
+		stored := 0
+		mu.Lock()
+		for _, replica := range storageMap {
+			if _, ok := replica[hash]; ok {
+				stored++
+			}
+		}
+		mu.Unlock()
+		if stored < 2 {
+			t.Fatalf("shard %s has only %d replicas", hash, stored)
+		}
+	}
+
 	// 2. Fetch innovant en parallèle
 	recoveredShards, err := client.FetchInnovativeShards(ctx, shardHashes, usedRelays, k, int64(len(rawShards[0])))
 	if err != nil {

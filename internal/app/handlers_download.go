@@ -66,7 +66,7 @@ func (a *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 			var manifestBuf bytes.Buffer
 			if _, decErr := cryptbox.DecryptTo(&manifestBuf, bytes.NewReader(blobBytes), int64(len(blobBytes)), key, 1<<20); decErr == nil {
 				var manifest rlncbox.Manifest
-				if jsonErr := json.Unmarshal(manifestBuf.Bytes(), &manifest); jsonErr == nil && manifest.Version == 1 {
+				if jsonErr := json.Unmarshal(manifestBuf.Bytes(), &manifest); jsonErr == nil && validRLNCManifest(manifest, a.cfg.MaxUploadBytes) {
 					meta = manifest.FileMeta
 				}
 			}

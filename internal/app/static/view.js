@@ -40,7 +40,24 @@
     return value.toFixed(1) + " " + units[i];
   }
 
-  const keyText = window.location.hash.charAt(0) === "#" ? window.location.hash.slice(1) : "";
+  // OnionGuard may have shown a no-JS CAPTCHA using a 200 HTML success
+  // page followed by a refresh. Fragments are never sent in form submissions.
+  // Recover only a short-lived, same-tab secret captured on the gate page.
+  const fragmentSlot = "insomnia:pending-zk:" + window.location.pathname;
+  let keyText = window.location.hash.charAt(0) === "#" ? window.location.hash.slice(1) : "";
+  try {
+    const pendingRaw = sessionStorage.getItem(fragmentSlot);
+    if (keyText) {
+      sessionStorage.removeItem(fragmentSlot);
+    } else if (pendingRaw && /^\/d\/[a-f0-9]{64}$/.test(window.location.pathname)) {
+      sessionStorage.removeItem(fragmentSlot);
+      const pending = JSON.parse(pendingRaw);
+      if (pending.expires > Date.now() && /^[A-Za-z0-9_-]{43}$/.test(pending.key)) {
+        keyText = pending.key;
+        window.history.replaceState(null, "", window.location.pathname + window.location.search + "#" + keyText);
+      }
+    }
+  } catch (_) { /* private browsing can disable sessionStorage */ }
   if (!keyText) {
     setStatus("Missing decryption key in the URL fragment (#…).", true);
     return;
@@ -120,18 +137,18 @@
 
     if (box) {
       let el = null;
-      if (type.indexOf("image/") === 0) {
+      if (["image/png", "image/jpeg", "image/gif", "image/webp"].includes(type)) {
         el = document.createElement("img");
         el.className = "preview-media";
         el.src = url;
         el.alt = name;
-      } else if (type.indexOf("video/") === 0) {
+      } else if (["video/mp4", "video/webm", "video/ogg"].includes(type)) {
         el = document.createElement("video");
         el.className = "preview-media";
         el.controls = true;
         el.preload = "metadata";
         el.src = url;
-      } else if (type.indexOf("audio/") === 0) {
+      } else if (["audio/mpeg", "audio/ogg", "audio/wav", "audio/webm"].includes(type)) {
         el = document.createElement("audio");
         el.className = "preview-audio";
         el.controls = true;

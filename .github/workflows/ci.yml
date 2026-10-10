@@ -50,6 +50,9 @@ jobs:
           node --check internal/app/static/boot.js
           node --check internal/app/static/view.js
           node --check tests/frontend.test.cjs
+          node --check internal/app/static/zk-fragment.js
+          node --check tests/zk-fragment.test.cjs
+          node tests/zk-fragment.test.cjs
           node tests/frontend.test.cjs
 
       - name: Run tests with race detector

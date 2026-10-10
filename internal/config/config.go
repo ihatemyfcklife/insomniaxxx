@@ -55,6 +55,9 @@ func (c Config) validate() error {
 	if len(c.BlossomURLs) == 0 {
 		return errors.New("BLOSSOM_URLS must contain at least one URL")
 	}
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "production") && len(c.BlossomURLs) < 2 {
+		return errors.New("production requires at least two distinct configured Blossom relays")
+	}
 	for _, raw := range c.BlossomURLs {
 		u, err := url.Parse(raw)
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
