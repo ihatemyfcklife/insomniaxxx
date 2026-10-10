@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	maxPlainCacheBytes int64 = 128 << 20
-	maxPlainCacheEntries = 2
+	maxPlainCacheBytes   int64 = 128 << 20
+	maxPlainCacheEntries       = 2
 )
 
 type cacheEntry struct {
@@ -174,8 +174,14 @@ func (c *downloadCache) GetOrDecrypt(
 		var oldestKey string
 		var oldest *cacheEntry
 		for candidateKey, candidate := range c.entries {
-			if candidateKey == key || candidate.path == "" { continue }
-			select { case <-candidate.ready: default: continue }
+			if candidateKey == key || candidate.path == "" {
+				continue
+			}
+			select {
+			case <-candidate.ready:
+			default:
+				continue
+			}
 			if oldest == nil || candidate.expiresAt.Before(oldest.expiresAt) {
 				oldestKey, oldest = candidateKey, candidate
 			}

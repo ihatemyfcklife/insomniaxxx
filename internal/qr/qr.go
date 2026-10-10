@@ -3,10 +3,10 @@ package qr
 import (
 	"encoding/base64"
 	"fmt"
+	qrcode "github.com/skip2/go-qrcode"
 	"html/template"
 	"image/color"
 	"net/http"
-	qrcode "github.com/skip2/go-qrcode"
 )
 
 // Size est la largeur et hauteur en pixels du PNG généré.
@@ -46,7 +46,9 @@ func Img(content string) template.HTML {
 	// The share link contains a bearer key; keep it out of HTTP request URLs.
 	// Render a PNG data URI so even the No-JS share page never calls /qr?data=.
 	png, err := qrcode.Encode(content, qrcode.Medium, Size)
-	if err != nil { return "" }
+	if err != nil {
+		return ""
+	}
 	src := "data:image/png;base64," + base64.StdEncoding.EncodeToString(png)
 	return template.HTML(fmt.Sprintf(`<img src="%s" alt="QR code" width="%d" height="%d">`, src, Size, Size))
 }

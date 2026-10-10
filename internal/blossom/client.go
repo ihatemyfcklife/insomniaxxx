@@ -289,15 +289,21 @@ func (c *Client) SelectUploadTargets() []string {
 	// Prefer independent configured relays: two copies of every shard
 	// remain retrievable after any single configured relay failure.
 	for _, s := range configHealthy {
-		if len(targets) >= 3 { break }
+		if len(targets) >= 3 {
+			break
+		}
 		targets = append(targets, s.URL)
 	}
 
 	// Persist to configured relays first: discovery membership can change on
 	// restart and must not make previously uploaded ciphertext unfindable.
 	for _, seed := range c.seedURLs {
-		if len(targets) >= 3 { break }
-		if !contains(targets, seed) { targets = append(targets, seed) }
+		if len(targets) >= 3 {
+			break
+		}
+		if !contains(targets, seed) {
+			targets = append(targets, seed)
+		}
 	}
 
 	// Discovered relays are only a fallback for development setups with
@@ -331,8 +337,12 @@ func (c *Client) SelectUploadTargets() []string {
 	// Ensure configured seeds are still attempted even before the initial
 	// asynchronous health check has completed.
 	for _, seed := range c.seedURLs {
-		if len(targets) >= 3 { break }
-		if !contains(targets, seed) { targets = append(targets, seed) }
+		if len(targets) >= 3 {
+			break
+		}
+		if !contains(targets, seed) {
+			targets = append(targets, seed)
+		}
 	}
 	return targets
 }
@@ -729,7 +739,9 @@ func (c *Client) UploadDistributedShards(ctx context.Context, shards [][]byte, s
 			usedRelaysMap[baseURL] = true
 			mu.Unlock()
 			storedCopies++
-			if storedCopies >= 2 { break }
+			if storedCopies >= 2 {
+				break
+			}
 		}
 
 		if storedCopies < 2 {
@@ -812,8 +824,12 @@ func (c *Client) FetchInnovativeShards(ctx context.Context, shardHashes []string
 	// Allow only servers already configured or discovered by this instance.
 	known := make(map[string]bool)
 	c.mu.RLock()
-	for addr := range c.servers { known[addr] = true }
-	for _, addr := range c.seedURLs { known[addr] = true }
+	for addr := range c.servers {
+		known[addr] = true
+	}
+	for _, addr := range c.seedURLs {
+		known[addr] = true
+	}
 	c.mu.RUnlock()
 	candidateRelays := make([]string, 0, len(relays))
 	for _, r := range relays {

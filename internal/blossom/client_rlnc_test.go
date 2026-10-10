@@ -97,10 +97,14 @@ func TestClient_DistributedUploadAndInnovativeFetch(t *testing.T) {
 		stored := 0
 		mu.Lock()
 		for _, replica := range storageMap {
-			if _, ok := replica[hash]; ok { stored++ }
+			if _, ok := replica[hash]; ok {
+				stored++
+			}
 		}
 		mu.Unlock()
-		if stored < 2 { t.Fatalf("shard %s has only %d replicas", hash, stored) }
+		if stored < 2 {
+			t.Fatalf("shard %s has only %d replicas", hash, stored)
+		}
 	}
 
 	// 2. Fetch innovant en parallèle
