@@ -49,6 +49,9 @@ func Load() (Config, error) {
 }
 
 func (c Config) validate() error {
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "production") && c.PublicBaseURL == "" {
+		return errors.New("PUBLIC_BASE_URL is mandatory when APP_ENV=production")
+	}
 	if len(c.BlossomURLs) == 0 {
 		return errors.New("BLOSSOM_URLS must contain at least one URL")
 	}

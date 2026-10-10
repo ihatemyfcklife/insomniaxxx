@@ -16,6 +16,7 @@ type Server struct {
 	storage         *blossom.Client
 	pages           *web.Pages
 	uploads         chan struct{}
+	rlncUploads     chan struct{}
 	downloads       chan struct{}
 	cancelDiscovery context.CancelFunc
 	http            *http.Server

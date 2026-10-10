@@ -67,6 +67,12 @@ type ClientOptions struct {
 	AllowPrivateRelays bool
 }
 
+// A verified blob is immutable. Handlers can reuse it without allocating
+// another 64 MiB slice after SHA-256 validation.
+type verifiedBlobBody struct { *bytes.Reader; data []byte }
+func (b *verifiedBlobBody) Close() error { return nil }
+func (b *verifiedBlobBody) VerifiedBytes() []byte { return b.data }
+
 type Descriptor struct {
 	URL      string `json:"url"`
 	SHA256   string `json:"sha256"`
@@ -499,6 +505,9 @@ func (c *Client) uploadOne(ctx context.Context, baseURL string, src io.ReadSeeke
 }
 
 func (c *Client) Fetch(ctx context.Context, hash string) (*http.Response, error) {
+	// Deadline covers all relay retries rather than applying only per-relay.
+	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	defer cancel()
 	urls := c.GetActiveURLs()
 	var lastErr string
 
@@ -533,7 +542,7 @@ func (c *Client) Fetch(ctx context.Context, hash string) (*http.Response, error)
 				lastErr = fmt.Sprintf("%s returned a blob hash mismatch", publicHost(baseURL))
 				continue
 			}
-			resp.Body = io.NopCloser(bytes.NewReader(body))
+			resp.Body = &verifiedBlobBody{Reader: bytes.NewReader(body), data: body}
 			resp.ContentLength = int64(len(body))
 			return resp, nil
 		}
@@ -604,12 +613,12 @@ func contains(slice []string, val string) bool {
 
 func validateDescriptor(body []byte, expectedHash string) error {
 	if len(body) == 0 {
-		return nil
+		return errors.New("relay returned an empty upload receipt")
 	}
 
 	var descriptor Descriptor
 	if err := json.Unmarshal(body, &descriptor); err != nil || descriptor.SHA256 == "" {
-		return nil
+		return errors.New("relay returned an invalid upload receipt")
 	}
 	if !strings.EqualFold(descriptor.SHA256, expectedHash) {
 		return errors.New("server returned a different blob hash")
@@ -761,7 +770,8 @@ func (c *Client) FetchInnovativeShards(ctx context.Context, shardHashes []string
 		}
 	}
 
-	fetchCtx, cancel := context.WithCancel(ctx)
+	// Bound complete shard reconstruction including unsuccessful relay attempts.
+	fetchCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
 
 	candidateRelays := make([]string, 0, len(relays))
@@ -817,8 +827,10 @@ func (c *Client) FetchInnovativeShards(ctx context.Context, shardHashes []string
 				case <-fetchCtx.Done():
 					return
 				}
-				req, err := http.NewRequestWithContext(fetchCtx, http.MethodGet, strings.TrimRight(baseURL, "/")+"/"+targetHash, nil)
+				attemptCtx, attemptCancel := context.WithTimeout(fetchCtx, 15*time.Second)
+				req, err := http.NewRequestWithContext(attemptCtx, http.MethodGet, strings.TrimRight(baseURL, "/")+"/"+targetHash, nil)
 				if err != nil {
+					attemptCancel()
 					<-fetchSlots
 					lastErr = err
 					continue
@@ -828,6 +840,7 @@ func (c *Client) FetchInnovativeShards(ctx context.Context, shardHashes []string
 
 				resp, err := safeClient.Do(req)
 				if err != nil {
+					attemptCancel()
 					<-fetchSlots
 					lastErr = err
 					continue
@@ -835,6 +848,7 @@ func (c *Client) FetchInnovativeShards(ctx context.Context, shardHashes []string
 
 				if resp.StatusCode != http.StatusOK {
 					resp.Body.Close()
+					attemptCancel()
 					<-fetchSlots
 					lastErr = fmt.Errorf("HTTP %d from %s", resp.StatusCode, baseURL)
 					continue
@@ -842,6 +856,7 @@ func (c *Client) FetchInnovativeShards(ctx context.Context, shardHashes []string
 
 				body, err := io.ReadAll(io.LimitReader(resp.Body, maxShardBytes+1))
 				resp.Body.Close()
+				attemptCancel()
 				<-fetchSlots
 				if err != nil {
 					lastErr = err
