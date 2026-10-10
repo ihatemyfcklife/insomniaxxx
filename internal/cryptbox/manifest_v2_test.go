@@ -45,14 +45,22 @@ func TestLegacyV1ManifestCanStillDecrypt(t *testing.T) {
 	content := []byte(`{"v":1,"shards":[]}`)
 	meta := FileMeta{Name: "manifest.json", Type: "application/x-anonblossom-manifest+json", Size: int64(len(content))}
 	prefix, err := MakeManifestPrefix(meta)
-	if err != nil { t.Fatal(err) }
-	outer := MakeOuterHeader(64<<10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outer := MakeOuterHeader(64 << 10)
 	aead, err := badcrypt.NewShardAEADWithSession(key, 123)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer aead.Close()
 	var old bytes.Buffer
-	if err := writeEncrypted(&old, bytes.NewReader(content), aead, outer, prefix, 64<<10); err != nil { t.Fatal(err) }
-	if UsesManifestKey(old.Bytes()[:16]) { t.Fatal("legacy header changed") }
+	if err := writeEncrypted(&old, bytes.NewReader(content), aead, outer, prefix, 64<<10); err != nil {
+		t.Fatal(err)
+	}
+	if UsesManifestKey(old.Bytes()[:16]) {
+		t.Fatal("legacy header changed")
+	}
 	var plain bytes.Buffer
 	decoded, err := DecryptTo(&plain, bytes.NewReader(old.Bytes()), int64(old.Len()), key, 1<<20)
 	if err != nil || decoded != meta || !bytes.Equal(plain.Bytes(), content) {

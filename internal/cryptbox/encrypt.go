@@ -39,13 +39,17 @@ func EncryptShareWithKey(key []byte, src io.Reader, dst io.Writer, meta FileMeta
 	if meta.Type == "application/x-anonblossom-manifest+json" {
 		// The file and manifest must never share a ChaCha20-Poly1305 key/nonce.
 		derivedKey := ManifestKey(key)
-		if derivedKey == nil { return errors.New("invalid manifest key") }
+		if derivedKey == nil {
+			return errors.New("invalid manifest key")
+		}
 		defer badcrypt.Zeroize(derivedKey)
 		key = derivedKey
 		outer = MakeManifestOuterHeader(chunkSize)
 	}
 	aead, err := badcrypt.NewShardAEADWithSession(key, sessionID)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	defer aead.Close()
 
 	prefix, err := MakeManifestPrefix(meta)

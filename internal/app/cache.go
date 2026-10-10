@@ -19,12 +19,12 @@ type cacheEntry struct {
 }
 
 type downloadCache struct {
-	mu      sync.Mutex
-	entries map[string]*cacheEntry
-	ttl     time.Duration
-	stop    chan struct{}
+	mu        sync.Mutex
+	entries   map[string]*cacheEntry
+	ttl       time.Duration
+	stop      chan struct{}
 	closeOnce sync.Once
-	closed bool
+	closed    bool
 }
 
 func newDownloadCache(ttl time.Duration) *downloadCache {
@@ -44,7 +44,9 @@ func (c *downloadCache) Close() {
 		defer c.mu.Unlock()
 		c.closed = true
 		for _, entry := range c.entries {
-			if entry.path != "" { _ = os.Remove(entry.path) }
+			if entry.path != "" {
+				_ = os.Remove(entry.path)
+			}
 		}
 		c.entries = make(map[string]*cacheEntry)
 	})
@@ -131,7 +133,9 @@ func (c *downloadCache) GetOrDecrypt(
 		entry.err = err
 		close(entry.ready)
 		delete(c.entries, key)
-		if entry.path != "" { _ = os.Remove(entry.path) }
+		if entry.path != "" {
+			_ = os.Remove(entry.path)
+		}
 		c.mu.Unlock()
 		return nil, cryptbox.FileMeta{}, err
 	}

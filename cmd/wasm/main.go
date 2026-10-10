@@ -12,8 +12,8 @@ import (
 	"github.com/ihatemyfcklife/badrlnc"
 
 	"anonblossom/internal/cryptbox"
-	qrcode "github.com/skip2/go-qrcode"
 	"anonblossom/internal/rlncbox"
+	qrcode "github.com/skip2/go-qrcode"
 )
 
 func main() {
@@ -248,11 +248,17 @@ func isInnovative(this js.Value, args []js.Value) any {
 
 // Generate the QR image in-browser to keep #fragment secrets off the wire.
 func generateQR(this js.Value, args []js.Value) any {
-	if len(args) < 1 { return errorObj("missing QR value") }
+	if len(args) < 1 {
+		return errorObj("missing QR value")
+	}
 	payload := args[0].String()
-	if len(payload) == 0 || len(payload) > 4096 { return errorObj("invalid QR value") }
+	if len(payload) == 0 || len(payload) > 4096 {
+		return errorObj("invalid QR value")
+	}
 	png, err := qrcode.Encode(payload, qrcode.Medium, 256)
-	if err != nil { return errorObj("QR generation failed") }
+	if err != nil {
+		return errorObj("QR generation failed")
+	}
 	out := js.Global().Get("Uint8Array").New(len(png))
 	js.CopyBytesToJS(out, png)
 	return out
@@ -260,7 +266,9 @@ func generateQR(this js.Value, args []js.Value) any {
 
 // Hash shard bytes in WASM to verify the manifest before accepting them.
 func hashBytes(this js.Value, args []js.Value) any {
-	if len(args) < 1 { return errorObj("missing data") }
+	if len(args) < 1 {
+		return errorObj("missing data")
+	}
 	buf := make([]byte, args[0].Get("length").Int())
 	js.CopyBytesToGo(buf, args[0])
 	hash := sha256.Sum256(buf)

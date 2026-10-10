@@ -9,7 +9,9 @@ import (
 // /qr?data= would send those fragments back to the server.
 func TestZeroKnowledgeQRDoesNotSendShareKeyToServer(t *testing.T) {
 	content, err := staticFS.ReadFile("static/boot.js")
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	src := string(content)
 	if strings.Contains(src, `"/qr?data="`) ||
 		strings.Contains(src, "const qrEndpoint") {
@@ -25,10 +27,14 @@ func TestZeroKnowledgeQRDoesNotSendShareKeyToServer(t *testing.T) {
 
 func TestZKShardChecksContentHashesAndLimitsConcurrency(t *testing.T) {
 	content, err := staticFS.ReadFile("static/view.js")
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	src := string(content)
 	for _, needle := range []string{"wasmSHA256(buf) !== hash", "Promise.all([worker(), worker()])", "?cipher=1"} {
-		if !strings.Contains(src, needle) { t.Fatalf("missing protection %q", needle) }
+		if !strings.Contains(src, needle) {
+			t.Fatalf("missing protection %q", needle)
+		}
 	}
 	if strings.Contains(src, "candidateRelays") {
 		t.Fatal("browser should not fetch unknown cross-origin relays")

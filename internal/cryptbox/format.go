@@ -1,8 +1,8 @@
 package cryptbox
 
 import (
-	"crypto/rand"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
@@ -16,14 +16,14 @@ import (
 )
 
 const (
-	outerMagic              = "ABLOBSH1"
-	outerHeaderSize         = 16
-	formatVersion           = 1
+	outerMagic               = "ABLOBSH1"
+	outerHeaderSize          = 16
+	formatVersion            = 1
 	manifestKeyFormatVersion = 2
-	manifestMagic           = "ABMAN001"
-	maxFilenameBytes        = 255
-	maxManifestBytes        = 64 << 10
-	encryptedPacketOverhead = 36 // 8B session + 12B nonce + 16B tag.
+	manifestMagic            = "ABMAN001"
+	maxFilenameBytes         = 255
+	maxManifestBytes         = 64 << 10
+	encryptedPacketOverhead  = 36 // 8B session + 12B nonce + 16B tag.
 )
 
 var aadPrefix = []byte("anonblossom/v1:")
@@ -80,7 +80,9 @@ func MakeOuterHeader(chunkSize int) []byte {
 
 // ManifestKey isolates manifest encryption from file encryption under one share secret.
 func ManifestKey(shareKey []byte) []byte {
-	if len(shareKey) != 32 { return nil }
+	if len(shareKey) != 32 {
+		return nil
+	}
 	mac := hmac.New(sha256.New, shareKey)
 	_, _ = mac.Write([]byte("anonblossom/manifest-key/v2"))
 	return mac.Sum(nil)

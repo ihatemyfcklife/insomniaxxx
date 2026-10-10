@@ -872,7 +872,10 @@ func (c *Client) FetchInnovativeShards(ctx context.Context, shardHashes []string
 				// Reject masks referencing unavailable source columns.
 				invalidMask := false
 				for bit := k; bit < 256; bit++ {
-					if shard.Mask.TestBit(bit) { invalidMask = true; break }
+					if shard.Mask.TestBit(bit) {
+						invalidMask = true
+						break
+					}
 				}
 				if invalidMask {
 					lastErr = errors.New("shard mask outside manifest dimension")

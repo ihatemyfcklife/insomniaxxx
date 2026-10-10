@@ -78,6 +78,3 @@ func TestDumpChallengePage(t *testing.T) {
 	})
 	_ = os.WriteFile("/tmp/verify_guard.html", []byte(c), 0644)
 }
-
-
-

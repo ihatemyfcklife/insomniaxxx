@@ -25,7 +25,9 @@ func TestFetchRejectsCorruptedRelayAndUsesHealthyReplica(t *testing.T) {
 	defer good.Close()
 	client := NewClientWithOptions([]string{bad.URL, good.URL}, http.DefaultClient, "test", ClientOptions{AllowPrivateRelays: true})
 	resp, err := client.Fetch(context.Background(), hash)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer resp.Body.Close()
 	got, err := io.ReadAll(resp.Body)
 	if err != nil || string(got) != string(blob) {
