@@ -69,6 +69,7 @@ type PageData struct {
 	IsVideo      bool
 	IsAudio      bool
 	MaxUpload    string
+	MaxUploadBytes int64
 	BlobHash     string
 	Key          string
 	QRCode       template.HTML

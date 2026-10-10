@@ -18,5 +18,6 @@ func (a *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 	_ = a.pages.Home(w, web.PageData{
 		Title:     pageTitle,
 		MaxUpload: humanBytes(a.cfg.MaxUploadBytes),
+		MaxUploadBytes: a.cfg.MaxUploadBytes,
 	})
 }
