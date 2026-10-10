@@ -17,9 +17,17 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - name: Verify formatting
+      - name: Verify formatting of changed Go files
         run: |
-          test -z "$(gofmt -l $(find . -name '*.go' -not -path './vendor/*'))"
+          files="$(git diff --name-only HEAD^1...HEAD -- '*.go')"
+          if [ -n "$files" ]; then
+            unformatted="$(printf '%s\n' "$files" | xargs gofmt -l)"
+            if [ -n "$unformatted" ]; then
+              echo "These changed Go files need gofmt:"
+              echo "$unformatted"
+              exit 1
+            fi
+          fi
       - name: Run tests
         run: go test ./...
       - name: Run vet
