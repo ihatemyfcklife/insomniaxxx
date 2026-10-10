@@ -1,0 +1,31 @@
+name: Temporary audit gofmt (self-removing)
+
+on:
+  push:
+    branches: [security/audit-remediation-20261010]
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: security/audit-remediation-20261010
+          persist-credentials: true
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.x'
+      - name: Format Go and remove this temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          gofmt -w cmd internal
+          git rm -f .github/workflows/audit-gofmt.yml
+          git add cmd internal
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "style: gofmt security remediation [skip release]"
+          git push origin HEAD:refs/heads/security/audit-remediation-20261010
