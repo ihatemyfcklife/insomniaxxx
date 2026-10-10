@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"syscall"
 	"strings"
+	"syscall"
 	"time"
 
 	"anonblossom/internal/blossom"
@@ -55,13 +55,13 @@ func NewServer(cfg config.Config) (*Server, error) {
 	storageClient := blossom.NewClient(cfg.BlossomURLs, &http.Client{Transport: transport}, userAgent)
 
 	a := &Server{
-		cfg:       cfg,
-		pages:     pages,
-		admission: admission,
-		cache:     cache,
-		storage:   storageClient,
-		uploads:   make(chan struct{}, cfg.UploadConcurrency),
-		downloads: make(chan struct{}, 2),
+		cfg:             cfg,
+		pages:           pages,
+		admission:       admission,
+		cache:           cache,
+		storage:         storageClient,
+		uploads:         make(chan struct{}, cfg.UploadConcurrency),
+		downloads:       make(chan struct{}, 2),
 		cancelDiscovery: cancelDiscovery,
 	}
 
@@ -98,6 +98,9 @@ func (a *Server) Run() error {
 		}
 		return nil
 	case <-signals.Done():
+		if a.cancelDiscovery != nil {
+			a.cancelDiscovery()
+		}
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		if err := a.http.Shutdown(shutdownCtx); err != nil {
