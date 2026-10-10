@@ -69,8 +69,12 @@ type ClientOptions struct {
 
 // A verified blob is immutable. Handlers can reuse it without allocating
 // another 64 MiB slice after SHA-256 validation.
-type verifiedBlobBody struct { *bytes.Reader; data []byte }
-func (b *verifiedBlobBody) Close() error { return nil }
+type verifiedBlobBody struct {
+	*bytes.Reader
+	data []byte
+}
+
+func (b *verifiedBlobBody) Close() error          { return nil }
 func (b *verifiedBlobBody) VerifiedBytes() []byte { return b.data }
 
 type Descriptor struct {
