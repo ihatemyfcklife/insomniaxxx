@@ -12,11 +12,11 @@
   <main class="container">
     {{template "logo" .}}
     {{if .ZK}}
-      <!-- Écran de chargement ZK : affiché pendant le chargement du manifeste, des shards et du déchiffrement -->
+      <!-- ZK loading screen: shown while the manifest, shards, and decryption are loading -->
       <section id="zkLoader" class="zk-loading-container" aria-live="polite">
         <noscript>
           <article role="alert">
-            <p>Ce fichier a été partagé en mode Zero-Knowledge (chiffrement local). Le déchiffrement nécessite l'activation de JavaScript / WebAssembly.</p>
+            <p>This file was shared in Zero-Knowledge mode (encryption runs locally in the browser). Opening it requires JavaScript / WebAssembly to be enabled.</p>
           </article>
         </noscript>
         <div class="zk-loading-card" id="zkVisual">
@@ -28,7 +28,7 @@
         </div>
       </section>
 
-      <!-- Section de prévisualisation : masquée tant que les shards ne sont pas décodés et le média déchiffré -->
+      <!-- Preview section: hidden until the shards are decoded and the media is decrypted -->
       <div id="zkContent" style="display: none;">
         <header>
           <h1 id="previewName">{{.FileName}}</h1>
@@ -52,7 +52,7 @@
       </div>
 
     {{else}}
-      <!-- Mode standard serveur (Tor Safest) -->
+      <!-- Standard server-side mode (Tor Safest) -->
       <header>
         <h1 id="previewName">{{.FileName}}</h1>
         <p class="muted"><span id="previewSize">{{.FileSize}}</span> · <code id="previewType">{{.FileType}}</code></p>
