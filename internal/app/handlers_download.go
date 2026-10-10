@@ -257,6 +257,26 @@ func (a *Server) handleBareBlob(w http.ResponseWriter, r *http.Request, hash str
 }
 
 
+func (a *Server) acquireDownload(w http.ResponseWriter) bool {
+	if a.downloads == nil {
+		http.Error(w, "download capacity is unavailable", http.StatusServiceUnavailable)
+		return false
+	}
+	select {
+	case a.downloads <- struct{}{}:
+		return true
+	default:
+		http.Error(w, "too many concurrent downloads; try again shortly", http.StatusServiceUnavailable)
+		return false
+	}
+}
+
+func (a *Server) releaseDownload() {
+	if a.downloads != nil {
+		<-a.downloads
+	}
+}
+
 // maxStoredBlobBytes bounds untrusted relay responses to the maximum encrypted object size.
 func (a *Server) maxStoredBlobBytes() int64 {
 	return a.cfg.MaxUploadBytes + (4 << 20)
