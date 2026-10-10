@@ -509,7 +509,9 @@ func (c *Client) uploadOne(ctx context.Context, baseURL string, src io.ReadSeeke
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, strings.TrimRight(baseURL, "/")+"/upload", src)
+	// net/http owns and closes Request.Body. Never give it our shared *os.File:
+	// each relay attempt needs to seek and reread the same encrypted bytes.
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, strings.TrimRight(baseURL, "/")+"/upload", io.NopCloser(src))
 	if err != nil {
 		return err
 	}
