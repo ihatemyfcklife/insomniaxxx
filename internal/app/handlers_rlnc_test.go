@@ -70,7 +70,7 @@ func setupTestServer(t *testing.T) (*Server, map[string]map[string][]byte, func(
 	}
 
 	seedURLs := []string{srv1.URL, srv2.URL, srv3.URL}
-	blossomClient := blossom.NewClient(seedURLs, http.DefaultClient, "test-agent")
+	blossomClient := blossom.NewClientWithOptions(seedURLs, http.DefaultClient, "test-agent", blossom.ClientOptions{AllowPrivateRelays: true})
 
 	cfg := config.Config{
 		ListenAddr:        ":8080",
