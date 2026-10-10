@@ -129,7 +129,6 @@ func challengeHTML(r *http.Request, challenge *onionguard.CaptchaChallenge, cfg 
       </form>
       <small class="muted">Powered by <a href="https://github.com/ihatemyfcklife/onionguard" class="view-relays-link">Onionguard</a>, No JavaScript required.</small>
     </article>
-    </article>
     %s
   </main>
 </body>
