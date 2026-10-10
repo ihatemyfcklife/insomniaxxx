@@ -333,8 +333,9 @@ func readLimitedBlob(r io.Reader, limit int64) ([]byte, error) {
 
 func (a *Server) acquireHeavyDownload(w http.ResponseWriter) bool {
 	if a.heavyDownloads == nil {
-		http.Error(w, "download capacity is unavailable", http.StatusServiceUnavailable)
-		return false
+		// Compatibility for lightweight/in-memory test servers constructed
+		// without the separate heavy-download limiter.
+		return a.acquireDownload(w)
 	}
 	select {
 	case a.heavyDownloads <- struct{}{}:
@@ -347,5 +348,9 @@ func (a *Server) acquireHeavyDownload(w http.ResponseWriter) bool {
 }
 
 func (a *Server) releaseHeavyDownload() {
+	if a.heavyDownloads == nil {
+		a.releaseDownload()
+		return
+	}
 	<-a.heavyDownloads
 }
