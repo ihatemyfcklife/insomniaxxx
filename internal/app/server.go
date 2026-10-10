@@ -17,6 +17,7 @@ import (
 	"anonblossom/internal/config"
 	"anonblossom/internal/guard"
 	"anonblossom/internal/web"
+	onionguard "github.com/ihatemyfcklife/onionguard"
 )
 
 func NewServer(cfg config.Config) (*Server, error) {
@@ -38,6 +39,14 @@ func NewServer(cfg config.Config) (*Server, error) {
 	}
 
 	guardConfig := guard.Configure(cfg.MaxUploadBytes+4<<20, cfg.OnionGuardSecure)
+	// A shared OnionGuard store is required when load-balancing multiple
+	// application replicas: challenges, sessions and rate limits must agree.
+	if cfg.GuardRedisAddr != "" {
+		guardConfig.StoreConfig.Type = onionguard.StoreTypeRedis
+		guardConfig.StoreConfig.RedisAddr = cfg.GuardRedisAddr
+		guardConfig.StoreConfig.RedisPassword = cfg.GuardRedisPassword
+		guardConfig.StoreConfig.RedisFailClosed = true
+	}
 	admission, err := guard.New(guardConfig)
 	if err != nil {
 		return nil, err

@@ -24,7 +24,7 @@ func (a *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	defer a.releaseUpload()
 
 	r.Body = http.MaxBytesReader(w, r.Body, a.cfg.MaxUploadBytes+4<<20)
-	if err := r.ParseMultipartForm(16 << 20); err != nil {
+	if err := r.ParseMultipartForm(1 << 20); err != nil {
 		a.renderHomeError(w, "upload is too large or malformed")
 		return
 	}

@@ -40,6 +40,8 @@ type Config struct {
 	RLNCUploads          int
 	SpoolBudgetBytes     int64
 	OnionGuardSecure  bool
+	GuardRedisAddr     string
+	GuardRedisPassword string
 }
 
 // Load reads and validates application settings from the environment.
@@ -56,6 +58,8 @@ func Load() (Config, error) {
 		RLNCUploads: getenvInt("RLNC_UPLOAD_CONCURRENCY", DefaultRLNCUploads),
 		SpoolBudgetBytes: int64(getenvInt("SPOOL_BUDGET_BYTES", DefaultSpoolBudgetBytes)),
 		OnionGuardSecure:  parseBool("ONIONGUARD_COOKIE_SECURE", false),
+		GuardRedisAddr:    strings.TrimSpace(os.Getenv("ONIONGUARD_REDIS_ADDR")),
+		GuardRedisPassword: os.Getenv("ONIONGUARD_REDIS_PASSWORD"),
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -67,6 +71,9 @@ func Load() (Config, error) {
 func (c Config) validate() error {
 	if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "production") && c.PublicBaseURL == "" {
 		return errors.New("PUBLIC_BASE_URL is mandatory when APP_ENV=production")
+	}
+	if c.GuardRedisPassword != "" && c.GuardRedisAddr == "" {
+		return errors.New("ONIONGUARD_REDIS_PASSWORD requires ONIONGUARD_REDIS_ADDR")
 	}
 	if len(c.BlossomURLs) == 0 {
 		return errors.New("BLOSSOM_URLS must contain at least one URL")
