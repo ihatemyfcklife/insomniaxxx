@@ -127,4 +127,12 @@ Share links include a server-rendered QR code. The QR is a static PNG served by 
 The encrypted object is intentionally uploaded as `application/octet-stream`: it is an opaque Blossom blob, not a JPEG, audio file, or video. Public media-only services may reject it even when they implement Blossom. Configure `BLOSSOM_URLS` with servers that accept generic Blossom blobs. Current defaults include `cdn.hzrd149.com`, `nostr.download`, `blossom.poster.place`, and `cdn.sovbit.host`; those are used by current Nostr/Blossom tooling for generic site/blob storage.
 
 When upgrading from an older release, update an existing `.env` too: values already present in `.env` override the new defaults. Replace any old media-only list such as `blossom.nostr.build,blossom.primal.net` with the generic Blossom defaults shown above.
+
+## License
+
+Copyright 2026 ihatemyfcklife.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License in the repository at [LICENSE](LICENSE).
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 <!-- release smoke test -->
