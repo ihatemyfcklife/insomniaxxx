@@ -201,7 +201,7 @@ This application has no file database to back up, but it does process sensitive 
 - Set `PUBLIC_BASE_URL` to the exact public HTTPS origin used by clients.
 - Set `ONIONGUARD_COOKIE_SECURE=true` when served over HTTPS. Keep it false only for a native HTTP .onion service.
 - Keep `BLOSSOM_URLS` limited to trusted, publicly reachable Blossom servers that accept generic `application/octet-stream` blobs. The application rejects private/special-use relay destinations and does not follow redirects.
-- `MAX_UPLOAD_BYTES` must be positive and at most 67,108,864 bytes (64 MiB). `UPLOAD_CONCURRENCY` must be between 1 and 4. The application allows at most two concurrent download/preview operations.
+- `MAX_UPLOAD_BYTES` must be positive and at most 67,108,864 bytes (64 MiB). `UPLOAD_CONCURRENCY` must be between 1 and 32. Encrypted downloads and No-JS decryption have separate, resource-budgeted concurrency controls; see [scaling](#scaling-toward-1000-simultaneous-file-transfers).
 
 #### Required redundancy, privacy, and edge controls
 
@@ -229,15 +229,15 @@ Set `PUBLIC_BASE_URL` to the canonical origin and test redirects/cookies through
 
 #### Container and host
 
-The Docker image runs as the distroless non-root user. Run it with a read-only root filesystem and an ephemeral, non-executable temporary filesystem large enough for uploads and short-lived decrypted cache files. Do not mount the temporary directory persistently or back it up. Use explicit memory, CPU, PID, and disk limits; the RLNC upload path keeps intermediate buffers in memory, so provision enough memory for the configured upload size and concurrency. A practical starting point for the 64 MiB maximum is 2 GiB memory and a 1 GiB ephemeral `/tmp`, then load-test and right-size to observed peaks.
+The Docker image runs as the distroless non-root user. Run it with a read-only root filesystem and an ephemeral, non-executable temporary filesystem large enough for uploads and short-lived decrypted cache files. Do not mount the temporary directory persistently or back it up. Use explicit memory, CPU, PID, and disk limits; the RLNC upload path keeps intermediate buffers in memory, so provision enough memory for the configured upload size and concurrency. When increasing concurrent transfers, provision memory and `/tmp` based on measured worst-case work: verified ciphertext spooling, multipart uploads, RLNC buffers, and No-JS plaintext caching. A 1 GiB `/tmp` is insufficient for the default 1 GiB spool budget *plus* other work.
 
 Example for a locally built image (adapt host limits and the proxy to your platform):
 
 ```sh
 docker build --build-arg VERSION="$(git rev-parse --short HEAD)" -t anonblossom:release .
 docker run --detach --name anonblossom \
-  --read-only --tmpfs /tmp:rw,noexec,nosuid,size=1g \
-  --memory=2g --cpus=2 --pids-limit=128 \
+  --read-only --tmpfs /tmp:rw,noexec,nosuid,size=4g \
+  --memory=4g --cpus=2 --pids-limit=128 \
   --restart unless-stopped --env APP_ENV=production --env-file .env \
   -p 127.0.0.1:8080:8080 anonblossom:release
 ```
