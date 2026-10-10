@@ -69,16 +69,26 @@ func NewServer(cfg config.Config) (*Server, error) {
 	// Bound disk spooling by the maximum encrypted blob size, not just by
 	// the number of active ciphertext downloads. This prevents large files
 	// from exhausting the temporary filesystem when concurrency increases.
-	if cfg.DownloadConcurrency <= 0 { cfg.DownloadConcurrency = config.DefaultDownloadConcurrency }
-	if cfg.HeavyDownloads <= 0 { cfg.HeavyDownloads = config.DefaultHeavyDownloads }
-	if cfg.RLNCUploads <= 0 { cfg.RLNCUploads = config.DefaultRLNCUploads }
-	if cfg.SpoolBudgetBytes <= 0 { cfg.SpoolBudgetBytes = config.DefaultSpoolBudgetBytes }
+	if cfg.DownloadConcurrency <= 0 {
+		cfg.DownloadConcurrency = config.DefaultDownloadConcurrency
+	}
+	if cfg.HeavyDownloads <= 0 {
+		cfg.HeavyDownloads = config.DefaultHeavyDownloads
+	}
+	if cfg.RLNCUploads <= 0 {
+		cfg.RLNCUploads = config.DefaultRLNCUploads
+	}
+	if cfg.SpoolBudgetBytes <= 0 {
+		cfg.SpoolBudgetBytes = config.DefaultSpoolBudgetBytes
+	}
 	blobBudget := cfg.MaxUploadBytes + (4 << 20)
 	cipherSlots := cfg.DownloadConcurrency
-	if blobBudget > 0 && int64(cipherSlots) > cfg.SpoolBudgetBytes / blobBudget {
+	if blobBudget > 0 && int64(cipherSlots) > cfg.SpoolBudgetBytes/blobBudget {
 		cipherSlots = int(cfg.SpoolBudgetBytes / blobBudget)
 	}
-	if cipherSlots < 1 { cipherSlots = 1 }
+	if cipherSlots < 1 {
+		cipherSlots = 1
+	}
 
 	a := &Server{
 		cfg:             cfg,

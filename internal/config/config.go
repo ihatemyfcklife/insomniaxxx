@@ -29,37 +29,37 @@ const (
 
 // Config contains runtime settings loaded from environment variables.
 type Config struct {
-	ListenAddr        string
-	BlossomURLs       []string
-	PublicBaseURL     string
-	MaxUploadBytes    int64
-	ChunkSize         int
-	UploadConcurrency int
+	ListenAddr          string
+	BlossomURLs         []string
+	PublicBaseURL       string
+	MaxUploadBytes      int64
+	ChunkSize           int
+	UploadConcurrency   int
 	DownloadConcurrency int
 	HeavyDownloads      int
-	RLNCUploads          int
-	SpoolBudgetBytes     int64
-	OnionGuardSecure  bool
-	GuardRedisAddr     string
-	GuardRedisPassword string
+	RLNCUploads         int
+	SpoolBudgetBytes    int64
+	OnionGuardSecure    bool
+	GuardRedisAddr      string
+	GuardRedisPassword  string
 }
 
 // Load reads and validates application settings from the environment.
 func Load() (Config, error) {
 	cfg := Config{
-		ListenAddr:        getenv("LISTEN_ADDR", DefaultListenAddr),
-		BlossomURLs:       parseURLs(getenv("BLOSSOM_URLS", DefaultBlossomURLs)),
-		PublicBaseURL:     strings.TrimRight(os.Getenv("PUBLIC_BASE_URL"), "/"),
-		MaxUploadBytes:    int64(getenvInt("MAX_UPLOAD_BYTES", DefaultMaxUploadBytes)),
-		ChunkSize:         getenvInt("CHUNK_SIZE", DefaultChunkSize),
-		UploadConcurrency: getenvInt("UPLOAD_CONCURRENCY", DefaultUploadConcurrency),
+		ListenAddr:          getenv("LISTEN_ADDR", DefaultListenAddr),
+		BlossomURLs:         parseURLs(getenv("BLOSSOM_URLS", DefaultBlossomURLs)),
+		PublicBaseURL:       strings.TrimRight(os.Getenv("PUBLIC_BASE_URL"), "/"),
+		MaxUploadBytes:      int64(getenvInt("MAX_UPLOAD_BYTES", DefaultMaxUploadBytes)),
+		ChunkSize:           getenvInt("CHUNK_SIZE", DefaultChunkSize),
+		UploadConcurrency:   getenvInt("UPLOAD_CONCURRENCY", DefaultUploadConcurrency),
 		DownloadConcurrency: getenvInt("DOWNLOAD_CONCURRENCY", DefaultDownloadConcurrency),
-		HeavyDownloads: getenvInt("HEAVY_DOWNLOAD_CONCURRENCY", DefaultHeavyDownloads),
-		RLNCUploads: getenvInt("RLNC_UPLOAD_CONCURRENCY", DefaultRLNCUploads),
-		SpoolBudgetBytes: int64(getenvInt("SPOOL_BUDGET_BYTES", DefaultSpoolBudgetBytes)),
-		OnionGuardSecure:  parseBool("ONIONGUARD_COOKIE_SECURE", false),
-		GuardRedisAddr:    strings.TrimSpace(os.Getenv("ONIONGUARD_REDIS_ADDR")),
-		GuardRedisPassword: os.Getenv("ONIONGUARD_REDIS_PASSWORD"),
+		HeavyDownloads:      getenvInt("HEAVY_DOWNLOAD_CONCURRENCY", DefaultHeavyDownloads),
+		RLNCUploads:         getenvInt("RLNC_UPLOAD_CONCURRENCY", DefaultRLNCUploads),
+		SpoolBudgetBytes:    int64(getenvInt("SPOOL_BUDGET_BYTES", DefaultSpoolBudgetBytes)),
+		OnionGuardSecure:    parseBool("ONIONGUARD_COOKIE_SECURE", false),
+		GuardRedisAddr:      strings.TrimSpace(os.Getenv("ONIONGUARD_REDIS_ADDR")),
+		GuardRedisPassword:  os.Getenv("ONIONGUARD_REDIS_PASSWORD"),
 	}
 
 	if err := cfg.validate(); err != nil {

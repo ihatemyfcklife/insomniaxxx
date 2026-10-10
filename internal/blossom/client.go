@@ -482,7 +482,10 @@ func (c *Client) Upload(ctx context.Context, src io.ReadSeeker, size int64, hash
 	// SectionReader so concurrent uploads never race on a shared Seek offset.
 	// The number of fanout goroutines is bounded by SelectUploadTargets (<=3).
 	if reader, ok := src.(io.ReaderAt); ok && size >= 0 {
-		type receipt struct { host string; err error }
+		type receipt struct {
+			host string
+			err  error
+		}
 		results := make(chan receipt, len(urls))
 		for _, baseURL := range urls {
 			go func(dest string) {
@@ -493,7 +496,9 @@ func (c *Client) Upload(ctx context.Context, src io.ReadSeeker, size int64, hash
 		for range urls {
 			result := <-results
 			if result.err != nil {
-				if firstErr == nil { firstErr = fmt.Errorf("%s: %w", result.host, result.err) }
+				if firstErr == nil {
+					firstErr = fmt.Errorf("%s: %w", result.host, result.err)
+				}
 			} else {
 				uploaded++
 			}
@@ -502,7 +507,9 @@ func (c *Client) Upload(ctx context.Context, src io.ReadSeeker, size int64, hash
 		// A generic ReadSeeker is not necessarily safe to read concurrently.
 		for _, baseURL := range urls {
 			if err := c.uploadOne(ctx, baseURL, src, size, hash); err != nil {
-				if firstErr == nil { firstErr = fmt.Errorf("%s: %w", publicHost(baseURL), err) }
+				if firstErr == nil {
+					firstErr = fmt.Errorf("%s: %w", publicHost(baseURL), err)
+				}
 				continue
 			}
 			uploaded++
@@ -758,11 +765,15 @@ func (c *Client) UploadDistributedShards(ctx context.Context, shards [][]byte, s
 			orderedTargets := make([]string, 0, len(targets))
 			orderedTargets = append(orderedTargets, primaryTarget)
 			for _, t := range targets {
-				if t != primaryTarget { orderedTargets = append(orderedTargets, t) }
+				if t != primaryTarget {
+					orderedTargets = append(orderedTargets, t)
+				}
 			}
 			var lastErr error
 			for _, baseURL := range orderedTargets {
-				if err := workCtx.Err(); err != nil { return }
+				if err := workCtx.Err(); err != nil {
+					return
+				}
 				reader := bytes.NewReader(shardData)
 				if err := c.uploadOne(workCtx, baseURL, reader, size, hash); err != nil {
 					lastErr = err
@@ -772,7 +783,9 @@ func (c *Client) UploadDistributedShards(ctx context.Context, shards [][]byte, s
 				usedRelaysMap[baseURL] = true
 				mu.Unlock()
 				storedCopies++
-				if storedCopies >= 2 { break }
+				if storedCopies >= 2 {
+					break
+				}
 			}
 			if storedCopies < 2 {
 				errOnce.Do(func() {
@@ -798,10 +811,16 @@ sendLoop:
 	}
 	close(jobs)
 	wg.Wait()
-	if firstErr != nil { return nil, firstErr }
-	if err := workCtx.Err(); err != nil { return nil, err }
+	if firstErr != nil {
+		return nil, firstErr
+	}
+	if err := workCtx.Err(); err != nil {
+		return nil, err
+	}
 	usedRelays := make([]string, 0, len(usedRelaysMap))
-	for r := range usedRelaysMap { usedRelays = append(usedRelays, r) }
+	for r := range usedRelaysMap {
+		usedRelays = append(usedRelays, r)
+	}
 	sort.Strings(usedRelays)
 	return usedRelays, nil
 }

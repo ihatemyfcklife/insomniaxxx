@@ -24,7 +24,9 @@ func (a *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 		// URL Zero-Knowledge : /d/<hash>#<clé> — la clé reste dans le fragment.
 		if bareHash, isBare := bareBlobHash(r.URL.Path); isBare {
 			if r.URL.Query().Has("cipher") {
-				if !a.acquireDownload(w) { return }
+				if !a.acquireDownload(w) {
+					return
+				}
 				defer a.releaseDownload()
 			}
 			a.handleBareBlob(w, r, bareHash)
@@ -36,7 +38,9 @@ func (a *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 	defer badcrypt.Zeroize(key)
 	// Plaintext metadata inspection and server-side decryption are CPU/memory
 	// intensive. Keep their concurrency separate from ciphertext streaming.
-	if !a.acquireHeavyDownload(w) { return }
+	if !a.acquireHeavyDownload(w) {
+		return
+	}
 	defer a.releaseHeavyDownload()
 
 	// Mode 1 : Page de prévisualisation HTML dédiée
