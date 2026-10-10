@@ -49,6 +49,8 @@ jobs:
         run: |
           node --check internal/app/static/boot.js
           node --check internal/app/static/view.js
+          node --check tests/frontend.test.cjs
+          node tests/frontend.test.cjs
 
       - name: Run tests with race detector
         run: go test -race -count=1 ./...

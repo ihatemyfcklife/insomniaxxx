@@ -49,6 +49,9 @@ func Load() (Config, error) {
 }
 
 func (c Config) validate() error {
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "production") && c.PublicBaseURL == "" {
+		return errors.New("PUBLIC_BASE_URL is mandatory when APP_ENV=production")
+	}
 	if len(c.BlossomURLs) == 0 {
 		return errors.New("BLOSSOM_URLS must contain at least one URL")
 	}
@@ -63,6 +66,10 @@ func (c Config) validate() error {
 		if err != nil || (publicURL.Scheme != "https" && publicURL.Scheme != "http") ||
 			publicURL.Host == "" || publicURL.Path != "" || publicURL.User != nil || publicURL.RawQuery != "" || publicURL.Fragment != "" {
 			return errors.New("PUBLIC_BASE_URL must be an http(s) origin without credentials, query, or fragment")
+		}
+		if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "production") &&
+			publicURL.Scheme == "http" && !strings.HasSuffix(strings.ToLower(publicURL.Hostname()), ".onion") {
+			return errors.New("production requires HTTPS except for native HTTP .onion origins")
 		}
 		if publicURL.Scheme == "https" && !c.OnionGuardSecure {
 			return errors.New("ONIONGUARD_COOKIE_SECURE must be true when PUBLIC_BASE_URL uses HTTPS")

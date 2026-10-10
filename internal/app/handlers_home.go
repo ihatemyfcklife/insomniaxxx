@@ -16,7 +16,8 @@ func (a *Server) handleHome(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Cache-Control", "no-store")
 	_ = a.pages.Home(w, web.PageData{
-		Title:     pageTitle,
-		MaxUpload: humanBytes(a.cfg.MaxUploadBytes),
+		Title:          pageTitle,
+		MaxUpload:      humanBytes(a.cfg.MaxUploadBytes),
+		MaxUploadBytes: a.cfg.MaxUploadBytes,
 	})
 }

@@ -89,6 +89,14 @@ The file and manifest use ChaCha20-Poly1305, **not XChaCha20-Poly1305**. Manifes
 
 Zero-Knowledge mode generates QR codes locally in WebAssembly. Share links have bearer secrets in URL fragments; never send complete share links to server-side QR endpoints, access logs, analytics, or error reporting. No-JS mode intentionally exposes the key to the server and must be deployed with strict URL log redaction.
 
+## RLNC availability and limits
+
+The erasure coding uses binary XOR masks over **GF(2)**, not Reed-Solomon or GF(2^8). It is **not MDS**: for the classic `k=4, n=6` profile, 3 of 15 possible pairs of missing shards cannot be recovered from only four remaining shards. In general, recovery requires at least `k` **linearly independent** shards, not any arbitrary `k` shards. Availability is also subject to Blossom retention and relay uptime; the service cannot promise a durability SLA.
+
+The frontend reads the exact server upload ceiling and rejects files above it before buffering or encrypting. The anonymous `/upload-raw` endpoint limits each encrypted shard separately and is not a per-user storage quota. OnionGuard, network rate limiting and proxy resource limits are required to mitigate abuse.
+
+When the **No-JS Mode** button is selected, the form submits natively to the server. The Zero-Knowledge button enables local WebAssembly encryption.
+
 ## Storage and privacy model
 
 There is no application database, account system, cookie-based file registry, or persistent upload index. The only persistent file storage is the configured public Blossom instances.

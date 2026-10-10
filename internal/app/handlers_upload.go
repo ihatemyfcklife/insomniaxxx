@@ -117,6 +117,19 @@ func (a *Server) releaseUpload() {
 }
 
 func (a *Server) handleUploadRLNC(w http.ResponseWriter, r *http.Request, file io.Reader, meta cryptbox.FileMeta) {
+	// Ciphertext, padded input, shards and wire frames coexist in memory;
+	// serialize the expensive pipeline independently of regular uploads.
+	if a.rlncUploads != nil {
+		select {
+		case a.rlncUploads <- struct{}{}:
+			defer func() { <-a.rlncUploads }()
+		case <-r.Context().Done():
+			return
+		default:
+			a.renderHomeError(w, "a large upload is already in progress; retry shortly")
+			return
+		}
+	}
 	// 1. Chiffrer le flux dans un buffer temporaire
 	tmp, err := os.CreateTemp("", "anonblossom-upload-rlnc-*")
 	if err != nil {

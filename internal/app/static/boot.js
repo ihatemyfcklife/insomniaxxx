@@ -30,7 +30,11 @@ if (typeof WebAssembly !== "undefined") {
     const btnNoJS = document.getElementById("btnModeNoJS");
     const btnWasm = document.getElementById("btnModeWasm");
 
+    // Selecting No-JS switches to native HTML POST; it must not continue
+    // encrypting locally after the user explicitly changes modes.
+    let activeMode = "wasm";
     function setArchMode(mode) {
+      activeMode = mode;
       if (mode === "wasm") {
         if (archImg) archImg.src = "/static/architecture-wasm.png";
         if (nojsDetails) nojsDetails.style.display = "none";
@@ -158,10 +162,19 @@ if (typeof WebAssembly !== "undefined") {
     const RLNC_THRESHOLD = 2 * 1024 * 1024; // 2 Mo
 
     form.onsubmit = async (e) => {
+      if (activeMode === "nojs") return; // Allow normal form submission.
       e.preventDefault();
       const input = document.getElementById("file");
       const file = input && input.files && input.files[0];
       if (!file) return;
+
+      // Match the configured plaintext limit before buffering or encrypting.
+      const maxFileSize = Number(input.dataset.maxUploadBytes);
+      if (!Number.isSafeInteger(maxFileSize) || maxFileSize <= 0 ||
+          file.size > maxFileSize || file.size > 64 * 1024 * 1024) {
+        alert("File exceeds the server upload limit.");
+        return;
+      }
 
       const submitBtn = document.getElementById("submitBtn");
       function ensureMascot() {

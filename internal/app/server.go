@@ -61,6 +61,7 @@ func NewServer(cfg config.Config) (*Server, error) {
 		cache:           cache,
 		storage:         storageClient,
 		uploads:         make(chan struct{}, cfg.UploadConcurrency),
+		rlncUploads:     make(chan struct{}, 1),
 		downloads:       make(chan struct{}, 2),
 		cancelDiscovery: cancelDiscovery,
 	}

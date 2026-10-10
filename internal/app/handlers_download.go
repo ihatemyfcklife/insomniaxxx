@@ -72,9 +72,9 @@ func (a *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		isImg := strings.HasPrefix(meta.Type, "image/")
-		isVideo := strings.HasPrefix(meta.Type, "video/")
-		isAudio := strings.HasPrefix(meta.Type, "audio/")
+		isImg := safeInlineType(meta.Type, "image/")
+		isVideo := safeInlineType(meta.Type, "video/")
+		isAudio := safeInlineType(meta.Type, "audio/")
 
 		w.Header().Set("Cache-Control", "no-store")
 		_ = a.pages.View(w, web.PageData{
@@ -177,13 +177,28 @@ func (a *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "private, no-store")
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
 
-	if r.URL.Query().Has("download") {
+	if r.URL.Query().Has("download") || !safeInlineType(meta.Type, "") {
+		// Untrusted HTML, SVG, XML or PDF must never render as active content
+		// on the application's own origin.
 		w.Header().Set("Content-Disposition", cryptbox.ContentDisposition(meta.Name))
 	} else {
 		w.Header().Set("Content-Disposition", "inline")
 	}
 
 	http.ServeContent(w, r, meta.Name, time.Time{}, file)
+}
+
+// Only passive formats may render directly on the application's origin.
+func safeInlineType(raw, prefix string) bool {
+	switch strings.ToLower(strings.TrimSpace(strings.Split(raw, ";")[0])) {
+	case "image/png", "image/jpeg", "image/gif", "image/webp":
+		return prefix == "" || prefix == "image/"
+	case "audio/mpeg", "audio/ogg", "audio/wav", "audio/webm":
+		return prefix == "" || prefix == "audio/"
+	case "video/mp4", "video/webm", "video/ogg":
+		return prefix == "" || prefix == "video/"
+	}
+	return false
 }
 
 // validRLNCManifest bounds all attacker-controlled parameters before shard downloads/decoding.
@@ -292,6 +307,13 @@ func (a *Server) maxStoredBlobBytes() int64 {
 // readLimitedBlob reads no more than limit+1 bytes so oversized or chunked relay
 // responses cannot grow memory without bound or be mistaken for complete objects.
 func readLimitedBlob(r io.Reader, limit int64) ([]byte, error) {
+	if verified, ok := r.(interface{ VerifiedBytes() []byte }); ok {
+		data := verified.VerifiedBytes()
+		if limit <= 0 || int64(len(data)) > limit {
+			return nil, errors.New("blob exceeds configured size limit")
+		}
+		return data, nil
+	}
 	if limit <= 0 {
 		return nil, errors.New("invalid blob size limit")
 	}

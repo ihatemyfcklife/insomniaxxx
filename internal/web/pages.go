@@ -50,30 +50,31 @@ type RelayView struct {
 
 // PageData is the data rendered into the public pages.
 type PageData struct {
-	Title        string
-	Version      string
-	Error        string
-	StatusCode   int
-	ErrorTitle   string
-	ErrorMessage string
-	ErrorDetail  string
-	ShareURL     string
-	RawURL       string
-	DownloadURL  string
-	ZK           bool
-	CipherURL    string
-	FileName     string
-	FileSize     string
-	FileType     string
-	IsImage      bool
-	IsVideo      bool
-	IsAudio      bool
-	MaxUpload    string
-	BlobHash     string
-	Key          string
-	QRCode       template.HTML
-	ThemeCSS     template.CSS
-	Relays       []RelayView
+	Title          string
+	Version        string
+	Error          string
+	StatusCode     int
+	ErrorTitle     string
+	ErrorMessage   string
+	ErrorDetail    string
+	ShareURL       string
+	RawURL         string
+	DownloadURL    string
+	ZK             bool
+	CipherURL      string
+	FileName       string
+	FileSize       string
+	FileType       string
+	IsImage        bool
+	IsVideo        bool
+	IsAudio        bool
+	MaxUpload      string
+	MaxUploadBytes int64
+	BlobHash       string
+	Key            string
+	QRCode         template.HTML
+	ThemeCSS       template.CSS
+	Relays         []RelayView
 }
 
 // withVersion injecte la version binaire si absente (rendu 100% serveur, sans JS).

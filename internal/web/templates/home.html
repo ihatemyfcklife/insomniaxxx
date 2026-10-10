@@ -18,7 +18,7 @@
 
     <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
       <label for="file">Upload File:</label>
-      <input id="file" name="file" type="file" required>
+      <input id="file" name="file" type="file" data-max-upload-bytes="{{.MaxUploadBytes}}" required>
       <button type="submit" id="submitBtn" class="btn-action">
         <img src="/static/xxx.png" alt="" class="upload-btn-mascot" width="1024" height="1072" draggable="false" aria-hidden="true">
         <span class="btn-text">Upload</span>
@@ -60,7 +60,7 @@
           </li>
           <li>
             <a href="https://github.com/ihatemyfcklife/badrlnc" target="_blank" rel="noopener noreferrer"><code>badrlnc</code></a>:
-            Random Linear Network Coding (RLNC) over GF(2<sup>8</sup>). Encrypted payloads are partitioned into innovative erasure-coded shards distributed across surviving relays.
+            Binary XOR erasure coding over GF(2). Encrypted payloads are partitioned into innovative erasure-coded shards distributed across surviving relays.
           </li>
           <li>
             <a href="https://fiatjaf.com/nostr" target="_blank" rel="noopener noreferrer"><code>fiatjaf/nostr</code></a>:
@@ -89,7 +89,7 @@
           </li>
           <li>
             <a href="https://github.com/ihatemyfcklife/badrlnc" target="_blank" rel="noopener noreferrer"><code>badrlnc</code></a>:
-            Random Linear Network Coding (RLNC) over GF(2<sup>8</sup>) running in WebAssembly. Shards are computed locally in-browser and decoded via Gauss-Jordan elimination upon download.
+            Binary XOR erasure coding over GF(2) running in WebAssembly. Shards are computed locally in-browser and decoded via Gauss-Jordan elimination upon download.
           </li>
           <li>
             <a href="https://fiatjaf.com/nostr" target="_blank" rel="noopener noreferrer"><code>fiatjaf/nostr</code></a>:
