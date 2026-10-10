@@ -54,6 +54,7 @@ type Client struct {
 	HTTP               *http.Client
 	UserAgent          string
 	allowPrivateRelays bool
+	safeHTTP           *http.Client
 }
 
 // ClientOptions controls optional behavior for isolated environments.
@@ -93,7 +94,99 @@ func NewClientWithOptions(seedURLs []string, httpClient *http.Client, userAgent 
 			Source: "Config",
 		}
 	}
+	c.safeHTTP = c.newSafeHTTPClient(httpClient)
 	return c
+}
+
+// newSafeHTTPClient clones the configured transport but disables proxies and redirects.
+// Requests still validate the destination at dial time to prevent DNS rebinding.
+func (c *Client) newSafeHTTPClient(base *http.Client) *http.Client {
+	if base == nil {
+		base = http.DefaultClient
+	}
+	safeClient := *base
+	safeClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	var transport *http.Transport
+	if existing, ok := base.Transport.(*http.Transport); ok && existing != nil {
+		transport = existing.Clone()
+	} else {
+		transport = http.DefaultTransport.(*http.Transport).Clone()
+	}
+	transport.Proxy = nil
+	transport.DialContext = c.safeDialContext
+	safeClient.Transport = transport
+	return &safeClient
+}
+
+func (c *Client) safeDialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return nil, err
+	}
+	var ips []net.IP
+	if ip := net.ParseIP(host); ip != nil {
+		ips = []net.IP{ip}
+	} else {
+		answers, lookupErr := net.DefaultResolver.LookupIPAddr(ctx, host)
+		if lookupErr != nil || len(answers) == 0 {
+			return nil, errors.New("relay hostname did not resolve")
+		}
+		for _, answer := range answers {
+			ips = append(ips, answer.IP)
+		}
+	}
+	if !c.allowPrivateRelays {
+		for _, ip := range ips {
+			if !isPublicRelayIP(ip) {
+				return nil, errors.New("relay resolves to a non-public IP address")
+			}
+		}
+	}
+	dialer := &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
+	var lastErr error
+	for _, ip := range ips {
+		conn, dialErr := dialer.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
+		if dialErr == nil {
+			return conn, nil
+		}
+		lastErr = dialErr
+	}
+	if lastErr == nil {
+		lastErr = errors.New("relay hostname did not resolve")
+	}
+	return nil, lastErr
+}
+
+var nonPublicRelayCIDRs = func() []*net.IPNet {
+	cidrs := []string{
+		"0.0.0.0/8", "100.64.0.0/10", "192.0.0.0/24", "192.0.2.0/24",
+		"192.88.99.0/24", "198.18.0.0/15", "198.51.100.0/24", "203.0.113.0/24",
+		"224.0.0.0/4", "240.0.0.0/4", "64:ff9b:1::/48", "100::/64",
+		"2001::/23", "2001:db8::/32", "5f00::/16",
+	}
+	nets := make([]*net.IPNet, 0, len(cidrs))
+	for _, cidr := range cidrs {
+		_, n, err := net.ParseCIDR(cidr)
+		if err == nil {
+			nets = append(nets, n)
+		}
+	}
+	return nets
+}()
+
+func isPublicRelayIP(ip net.IP) bool {
+	if ip == nil || !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() ||
+		ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
+		return false
+	}
+	for _, network := range nonPublicRelayCIDRs {
+		if network.Contains(ip) {
+			return false
+		}
+	}
+	return true
 }
 
 // GetActiveURLs renvoie les serveurs actuellement en ligne et non blacklistés.
@@ -356,6 +449,9 @@ func (c *Client) Upload(ctx context.Context, src io.ReadSeeker, size int64, hash
 }
 
 func (c *Client) uploadOne(ctx context.Context, baseURL string, src io.ReadSeeker, size int64, hash string) error {
+	if err := relayURLAllowed(ctx, baseURL, c.allowPrivateRelays); err != nil {
+		return fmt.Errorf("unsafe relay URL: %w", err)
+	}
 	if _, err := src.Seek(0, io.SeekStart); err != nil {
 		return err
 	}
@@ -376,7 +472,7 @@ func (c *Client) uploadOne(ctx context.Context, baseURL string, src io.ReadSeeke
 	}
 	req.Header.Set("Authorization", auth)
 
-	resp, err := c.HTTP.Do(req)
+	resp, err := c.safeHTTP.Do(req)
 	if err != nil {
 		return err
 	}
@@ -401,6 +497,10 @@ func (c *Client) Fetch(ctx context.Context, hash string) (*http.Response, error)
 	var lastErr string
 
 	for _, baseURL := range urls {
+		if err := relayURLAllowed(ctx, baseURL, c.allowPrivateRelays); err != nil {
+			lastErr = fmt.Sprintf("%s: unsafe relay URL: %v", publicHost(baseURL), err)
+			continue
+		}
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(baseURL, "/")+"/"+hash, nil)
 		if err != nil {
 			lastErr = err.Error()
@@ -616,7 +716,7 @@ func relayURLAllowed(ctx context.Context, raw string, allowPrivate bool) error {
 	}
 	if !allowPrivate {
 		for _, ip := range ips {
-			if ip == nil || !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
+			if !isPublicRelayIP(ip) {
 				return errors.New("relay resolves to a non-public IP address")
 			}
 		}
@@ -656,50 +756,9 @@ func (c *Client) FetchInnovativeShards(ctx context.Context, shardHashes []string
 		return nil, errors.New("no safe public relays available to fetch shards")
 	}
 
-	// Relays are untrusted: do not follow redirects, which could target private services.
-	baseClient := c.HTTP
-	if baseClient == nil {
-		baseClient = http.DefaultClient
-	}
-	safeClient := *baseClient
-	safeClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
-		return http.ErrUseLastResponse
-	}
-	// Validate the IP used by the actual connection too, preventing DNS rebinding
-	// between the URL pre-check and the HTTP request. Never route these requests
-	// through an environment-configured proxy.
-	var transport *http.Transport
-	if existing, ok := baseClient.Transport.(*http.Transport); ok && existing != nil {
-		transport = existing.Clone()
-	} else {
-		transport = http.DefaultTransport.(*http.Transport).Clone()
-	}
-	transport.Proxy = nil
-	dialer := &net.Dialer{Timeout: 5 * time.Second, KeepAlive: 30 * time.Second}
-	transport.DialContext = func(dialCtx context.Context, network, address string) (net.Conn, error) {
-		host, port, splitErr := net.SplitHostPort(address)
-		if splitErr != nil {
-			return nil, splitErr
-		}
-		ips, lookupErr := net.DefaultResolver.LookupIPAddr(dialCtx, host)
-		if lookupErr != nil || len(ips) == 0 {
-			return nil, errors.New("relay hostname did not resolve")
-		}
-		var lastErr error
-		for _, answer := range ips {
-			ip := answer.IP
-			if !c.allowPrivateRelays && (ip == nil || !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified()) {
-				return nil, errors.New("relay resolves to a non-public IP address")
-			}
-			conn, dialErr := dialer.DialContext(dialCtx, network, net.JoinHostPort(ip.String(), port))
-			if dialErr == nil {
-				return conn, nil
-			}
-			lastErr = dialErr
-		}
-		return nil, lastErr
-	}
-	safeClient.Transport = transport
+	// Reuse the shared client whose dialer blocks private destinations and whose
+	// redirect policy prevents a public relay from redirecting to a private target.
+	safeClient := c.safeHTTP
 
 	type shardResult struct {
 		shard badrlnc.Shard
