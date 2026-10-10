@@ -696,7 +696,7 @@ func relayURLAllowed(ctx context.Context, raw string, allowPrivate bool) error {
 	}
 	host := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
 	if !allowPrivate {
-		for _, suffix := range []string{".localhost", ".local", ".internal", ".lan"} {
+		for _, suffix := range []string{".localhost", ".local", ".internal", ".lan", ".home.arpa"} {
 			if host == strings.TrimPrefix(suffix, ".") || strings.HasSuffix(host, suffix) {
 				return errors.New("non-public relay hostname")
 			}
