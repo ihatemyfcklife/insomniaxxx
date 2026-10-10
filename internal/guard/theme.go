@@ -209,15 +209,17 @@ func successHTML(_ *http.Request, target string) string {
 </head>
 <body>
   <main class="container">
+    %s
     <article role="status">
       <h1>Passed</h1>
       <p>Verification passed. Redirecting...</p>
+      <small class="muted">Powered by <a href="https://github.com/ihatemyfcklife/onionguard" class="view-relays-link">Onionguard</a>, No JavaScript required.</small>
       <a href="%s" class="view-relays-link">Continue</a>
     </article>
     %s
   </main>
 </body>
-</html>`, escapedTarget, pageTitle, web.PicoThemeCSS, escapedTarget, web.FooterHTML())
+</html>`, escapedTarget, pageTitle, web.PicoThemeCSS, web.LogoHTML(), escapedTarget, web.FooterHTML())
 }
 
 func mustColor(hexValue string) color.RGBA {
