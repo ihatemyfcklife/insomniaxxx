@@ -1,7 +1,6 @@
 package app
 
 import (
-	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
@@ -11,6 +10,11 @@ import (
 // This is NOT a 1,000 end-to-end file transfer throughput benchmark.
 func TestTransferAdmissionBoundedUnderThousandClients(t *testing.T) {
 	a := &Server{downloads: make(chan struct{}, 32), heavyDownloads: make(chan struct{}, 4)}
+	// Saturate every slot before starting the burst; otherwise a fast
+	// in-memory admission and release can make the test scheduler-dependent.
+	for i := 0; i < cap(a.downloads); i++ {
+		a.downloads <- struct{}{}
+	}
 	const clients = 1000
 	start := make(chan struct{})
 	var wg sync.WaitGroup
@@ -21,8 +25,6 @@ func TestTransferAdmissionBoundedUnderThousandClients(t *testing.T) {
 			defer wg.Done()
 			<-start
 			w := httptest.NewRecorder()
-			r := httptest.NewRequest(http.MethodGet, "/d/test?cipher=1", nil)
-			_ = r
 			if a.acquireDownload(w) {
 				defer a.releaseDownload()
 				results <- http.StatusOK
@@ -45,12 +47,20 @@ func TestTransferAdmissionBoundedUnderThousandClients(t *testing.T) {
 			t.Fatalf("unexpected response status: %d", status)
 		}
 	}
-	if success+rejected != clients || rejected == 0 {
-		t.Fatalf("unbounded or lost transfer admissions: %d accepted, %d refused", success, rejected)
+	if success != 0 || rejected != clients {
+		t.Fatalf("capacity exceeded during overload burst: %d accepted, %d refused", success, rejected)
+	}
+	for i := 0; i < cap(a.downloads); i++ {
+		a.releaseDownload()
 	}
 	if len(a.downloads) != 0 {
 		t.Fatal("leaked cipher download slot")
 	}
+	w := httptest.NewRecorder()
+	if !a.acquireDownload(w) {
+		t.Fatal("admission did not recover after overload")
+	}
+	a.releaseDownload()
 	if len(a.heavyDownloads) != 0 {
 		t.Fatal("leaked plaintext download slot")
 	}
