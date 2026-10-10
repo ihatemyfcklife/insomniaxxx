@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"os"
 	"sync"
 	"time"
@@ -22,6 +23,8 @@ type downloadCache struct {
 	entries map[string]*cacheEntry
 	ttl     time.Duration
 	stop    chan struct{}
+	closeOnce sync.Once
+	closed bool
 }
 
 func newDownloadCache(ttl time.Duration) *downloadCache {
@@ -35,15 +38,16 @@ func newDownloadCache(ttl time.Duration) *downloadCache {
 }
 
 func (c *downloadCache) Close() {
-	close(c.stop)
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for _, entry := range c.entries {
-		if entry.path != "" {
-			_ = os.Remove(entry.path)
+	c.closeOnce.Do(func() {
+		close(c.stop)
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		c.closed = true
+		for _, entry := range c.entries {
+			if entry.path != "" { _ = os.Remove(entry.path) }
 		}
-	}
-	c.entries = make(map[string]*cacheEntry)
+		c.entries = make(map[string]*cacheEntry)
+	})
 }
 
 func (c *downloadCache) cleaner() {
@@ -58,6 +62,13 @@ func (c *downloadCache) cleaner() {
 			c.mu.Lock()
 			for key, entry := range c.entries {
 				if now.After(entry.expiresAt) {
+					// Never evict an in-flight decrypt. Otherwise its future
+					// plaintext file can become orphaned on disk.
+					select {
+					case <-entry.ready:
+					default:
+						continue
+					}
 					delete(c.entries, key)
 					if entry.path != "" {
 						_ = os.Remove(entry.path)
@@ -78,6 +89,10 @@ func (c *downloadCache) GetOrDecrypt(
 	decryptFn func() (string, cryptbox.FileMeta, error),
 ) (*os.File, cryptbox.FileMeta, error) {
 	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return nil, cryptbox.FileMeta{}, errors.New("download cache is closed")
+	}
 	entry, exists := c.entries[key]
 	if exists {
 		entry.expiresAt = time.Now().Add(c.ttl)
@@ -112,17 +127,28 @@ func (c *downloadCache) GetOrDecrypt(
 
 	path, meta, err := decryptFn()
 	if err != nil {
+		c.mu.Lock()
 		entry.err = err
 		close(entry.ready)
-		c.mu.Lock()
 		delete(c.entries, key)
+		if entry.path != "" { _ = os.Remove(entry.path) }
 		c.mu.Unlock()
 		return nil, cryptbox.FileMeta{}, err
 	}
 
+	c.mu.Lock()
+	if c.closed {
+		_ = os.Remove(path)
+		entry.err = errors.New("download cache is closed")
+		close(entry.ready)
+		c.mu.Unlock()
+		return nil, cryptbox.FileMeta{}, entry.err
+	}
 	entry.path = path
 	entry.meta = meta
+	entry.expiresAt = time.Now().Add(c.ttl)
 	close(entry.ready)
+	c.mu.Unlock()
 
 	f, err := os.Open(entry.path)
 	if err != nil {

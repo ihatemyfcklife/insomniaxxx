@@ -142,7 +142,12 @@
         box.innerHTML = "";
         box.appendChild(el);
       } else {
-        box.innerHTML = `<div class="no-preview muted"><p>No preview available for ${type} — use Download.</p></div>`;
+        const message = document.createElement("p");
+        message.textContent = "No preview available for " + type + " — use Download.";
+        const fallback = document.createElement("div");
+        fallback.className = "no-preview muted";
+        fallback.appendChild(message);
+        box.replaceChildren(fallback);
       }
     }
 
@@ -163,29 +168,42 @@
   // Cas 2 : Manifeste RLNC -> téléchargement parallèle des shards sans afficher la preview
   setStatus(`Fetching shards from distributed relays (0 / ${manifest.k})…`);
 
+  // A manifest is supplied by a third party; validate it before allocating shards.
+  if (!Number.isSafeInteger(manifest.k) || manifest.k < 1 || manifest.k > 64 ||
+      !Number.isSafeInteger(manifest.n) || manifest.n < manifest.k || manifest.n > 96 ||
+      !Array.isArray(manifest.shards) || manifest.shards.length !== manifest.n ||
+      !Number.isSafeInteger(manifest.enc_size) || manifest.enc_size <= 0 || manifest.enc_size > 68 * 1024 * 1024 ||
+      !Number.isSafeInteger(manifest.chunk_size) ||
+      manifest.chunk_size !== Math.ceil(manifest.enc_size / manifest.k) ||
+      manifest.shards.some(h => typeof h !== "string" || !/^[a-f0-9]{64}$/.test(h))) {
+    setStatus("Invalid RLNC manifest.", true);
+    return;
+  }
+
+  // Use the application proxy (which validates public relays) rather than
+  // cross-origin requests with unpredictable CORS policy. The server has two
+  // download slots, so do not launch N shard fetches concurrently.
   const abortController = new AbortController();
   const acceptedShards = [];
-  const candidateRelays = (manifest.relays && manifest.relays.length > 0) ? manifest.relays : [window.location.origin];
+  let nextShard = 0;
 
   async function fetchShard(hash) {
-    const urlsToTry = [];
-    urlsToTry.push(`/d/${hash}?cipher=1`);
-    for (const r of candidateRelays) {
-      const cleanRelay = r.replace(/\/$/, "");
-      urlsToTry.push(`${cleanRelay}/${hash}`);
-    }
-
-    for (const url of urlsToTry) {
-      if (abortController.signal.aborted) return null;
+    for (let attempt = 0; attempt < 3 && !abortController.signal.aborted; attempt++) {
       try {
-        const resp = await fetch(url, { signal: abortController.signal });
-        if (resp.ok) {
-          const buf = new Uint8Array(await resp.arrayBuffer());
-          // Contrôle de forme : en-tête ABSH
-          if (buf.length >= 40 && buf[0] === 0x41 && buf[1] === 0x42 && buf[2] === 0x53 && buf[3] === 0x48) {
-            return buf;
-          }
+        const resp = await fetch(`/d/${hash}?cipher=1`, { signal: abortController.signal });
+        if (!resp.ok) {
+          if (attempt < 2) await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 250));
+          continue;
         }
+        const headerLength = Number(resp.headers.get("Content-Length"));
+        if (headerLength && headerLength > manifest.chunk_size + 40) return null;
+        const buf = new Uint8Array(await resp.arrayBuffer());
+        if (buf.length !== manifest.chunk_size + 40 ||
+            buf[0] !== 0x41 || buf[1] !== 0x42 || buf[2] !== 0x53 || buf[3] !== 0x48 ||
+            typeof wasmSHA256 !== "function" || wasmSHA256(buf) !== hash) {
+          continue;
+        }
+        return buf;
       } catch (err) {
         if (abortController.signal.aborted) return null;
       }
@@ -193,23 +211,19 @@
     return null;
   }
 
-  const shardPromises = manifest.shards.map((hash) =>
-    fetchShard(hash).then((shardBytes) => {
-      if (!shardBytes || abortController.signal.aborted) return;
-      if (typeof wasmIsInnovative === "function") {
-        if (!wasmIsInnovative(acceptedShards, shardBytes)) {
-          return;
-        }
-      }
+  async function worker() {
+    while (!abortController.signal.aborted && nextShard < manifest.shards.length) {
+      const index = nextShard++;
+      const shardBytes = await fetchShard(manifest.shards[index]);
+      if (!shardBytes || abortController.signal.aborted) continue;
+      if (typeof wasmIsInnovative !== "function" || !wasmIsInnovative(acceptedShards, shardBytes)) continue;
       acceptedShards.push(shardBytes);
       setStatus(`Fetching shards from distributed relays (${acceptedShards.length} / ${manifest.k})…`);
-      if (acceptedShards.length >= manifest.k) {
-        abortController.abort();
-      }
-    })
-  );
+      if (acceptedShards.length >= manifest.k) abortController.abort();
+    }
+  }
 
-  await Promise.allSettled(shardPromises);
+  await Promise.all([worker(), worker()]);
 
   if (acceptedShards.length < manifest.k) {
     setStatus(`Failed to retrieve enough innovative shards (${acceptedShards.length} / ${manifest.k}).`, true);

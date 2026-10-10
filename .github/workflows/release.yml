@@ -43,7 +43,7 @@ jobs:
             echo "bump=skip" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if git tag --points-at HEAD | grep -qE "^v[0-9]+\.[0-9]+\.[0-9]+$"; then
+          if [[ "${{ github.ref }}" != refs/tags/* ]] && git tag --points-at HEAD | grep -qE "^v[0-9]+\.[0-9]+\.[0-9]+$"; then
             echo "HEAD already tagged, skipping."
             echo "bump=skip" >> "$GITHUB_OUTPUT"
             exit 0
