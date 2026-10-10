@@ -1,6 +1,6 @@
 # Production release controls
 
-This checklist is for repository administrators and release operators. It is **not** proof that a public deployment has passed security review. Also follow [DEPLOYMENT.md](../DEPLOYMENT.md).
+This checklist is for repository administrators and release operators. It is **not** proof that a public deployment has passed security review. Also follow [production deployment checklist](../README.md#production-deployment-checklist).
 
 ## Protect `main` (repository administrator action)
 
@@ -16,13 +16,13 @@ GitHub repository **Settings → Rules → Rulesets** (or **Settings → Branche
 
 ## Confirm the exact code being published
 
-At the time of writing, `v0.2.14` points to `1b109f6c8beb6e8fa8960d113b9add3296e5f833`, while `main` pointed to `59459c530000daebaea7b058e89e51db651a2668` (9 commits ahead). The post-release security commits intentionally contain `[skip release]`.
+As of 2026-10-10, `v0.2.15` points to `ff2757168f80856bb5213b174ecee8b9c7f6a16e` and contains the security fixes that postdate `v0.2.14`. Future releases must be checked against the exact CI-verified `main` SHA; some commits intentionally contain `[skip release]`.
 
 Never remove those skip instructions merely to cause an automatic release. A successful CI run on `main` does **not** rebuild previous GitHub Release assets.
 
 ## Stage and manually publish a skipped security update
 
-1. Finish and record the staging checks listed in [DEPLOYMENT.md](../DEPLOYMENT.md): real TLS/Tor ingress, no-JS and WASM upload/download/recovery, CAPTCHA/fragment privacy, no URL-key logging, max-size and concurrent transfers, relay failure handling, temporary-file cleanup, memory/CPU/disk limits, and security review.
+1. Finish and record the staging checks listed in [production deployment checklist](../README.md#production-deployment-checklist): real TLS/Tor ingress, no-JS and WASM upload/download/recovery, CAPTCHA/fragment privacy, no URL-key logging, max-size and concurrent transfers, relay failure handling, temporary-file cleanup, memory/CPU/disk limits, and security review.
 2. Ensure the selected `main` SHA has a successful `CI / test-and-build` check, and confirm the required branch rule is active.
 3. In **Actions → release → Run workflow**, select `main`. For an intentionally skipped commit, enable **release_skipped** and **staging_verified**. Select `bump=patch` unless a reviewed versioning decision requires otherwise. These inputs are an explicit release attestation, **not** automated staging tests.
 4. The workflow refuses to release if `main` moved since it started, if it cannot locate successful CI for the exact SHA, or if a skipped commit is not manually approved. It builds WASM and Linux amd64/arm64 binaries, checks their SHA-256 digests, then creates the new tag and GitHub Release.
@@ -33,4 +33,4 @@ If publication stops after tag creation, inspect the workflow and release assets
 
 ## Historical cryptographic caution
 
-Older v1 RLNC manifest links cannot be repaired in place by releasing new software. Re-upload sensitive affected files and distribute their new links as described in [DEPLOYMENT.md](../DEPLOYMENT.md).
+Older v1 RLNC manifest links cannot be repaired in place by releasing new software. Re-upload sensitive affected files and distribute their new links as described in [production deployment checklist](../README.md#production-deployment-checklist).
