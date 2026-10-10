@@ -217,7 +217,7 @@ func successHTML(_ *http.Request, target string) string {
     %s
   </main>
 </body>
-</html>`, escapedTarget, pageTitle, web.PicoThemeCSS, web.LogoHTML(), escapedTarget, web.FooterHTML())
+</html>`, escapedTarget, pageTitle, web.PicoThemeCSS, escapedTarget, web.FooterHTML())
 }
 
 func mustColor(hexValue string) color.RGBA {
