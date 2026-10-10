@@ -37,7 +37,7 @@ func (a *Server) routes() http.Handler {
 		h.ServeHTTP(w, r)
 	})
 
-	protectedApp := securityHeaders(a.admission.Middleware(muxWrapper))
+	protectedApp := a.admission.Middleware(muxWrapper)
 
 	// 3. Routeur racine qui aiguille les requêtes
 	root := http.NewServeMux()
@@ -53,7 +53,9 @@ func (a *Server) routes() http.Handler {
 	// Tout le reste passe par OnionGuard
 	root.Handle("/", protectedApp)
 
-	return root
+	// Security headers apply to every response, including static assets and
+	// favicon routes which intentionally bypass OnionGuard admission.
+	return securityHeaders(root)
 }
 
 func redirectHome(w http.ResponseWriter, r *http.Request) {

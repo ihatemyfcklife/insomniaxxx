@@ -69,7 +69,11 @@ func Load() (Config, error) {
 }
 
 func (c Config) validate() error {
-	if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "production") && c.PublicBaseURL == "" {
+	mode := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
+	if mode != "" && mode != "development" && mode != "production" {
+		return errors.New("APP_ENV must be development or production")
+	}
+	if mode == "production" && c.PublicBaseURL == "" {
 		return errors.New("PUBLIC_BASE_URL is mandatory when APP_ENV=production")
 	}
 	if c.GuardRedisPassword != "" && c.GuardRedisAddr == "" {
@@ -78,13 +82,16 @@ func (c Config) validate() error {
 	if len(c.BlossomURLs) == 0 {
 		return errors.New("BLOSSOM_URLS must contain at least one URL")
 	}
-	if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "production") && len(c.BlossomURLs) < 2 {
+	if mode == "production" && len(c.BlossomURLs) < 2 {
 		return errors.New("production requires at least two distinct configured Blossom relays")
 	}
 	for _, raw := range c.BlossomURLs {
 		u, err := url.Parse(raw)
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
 			return fmt.Errorf("invalid Blossom URL: %q", raw)
+		}
+		if mode == "production" && u.Scheme != "https" {
+			return errors.New("production BLOSSOM_URLS must use HTTPS")
 		}
 	}
 	if c.PublicBaseURL != "" {
@@ -93,7 +100,7 @@ func (c Config) validate() error {
 			publicURL.Host == "" || publicURL.Path != "" || publicURL.User != nil || publicURL.RawQuery != "" || publicURL.Fragment != "" {
 			return errors.New("PUBLIC_BASE_URL must be an http(s) origin without credentials, query, or fragment")
 		}
-		if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "production") &&
+		if mode == "production" &&
 			publicURL.Scheme == "http" && !strings.HasSuffix(strings.ToLower(publicURL.Hostname()), ".onion") {
 			return errors.New("production requires HTTPS except for native HTTP .onion origins")
 		}
