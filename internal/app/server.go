@@ -7,6 +7,9 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"strings"
 	"time"
 
@@ -41,6 +44,7 @@ func NewServer(cfg config.Config) (*Server, error) {
 	}
 
 	cache := newDownloadCache(3 * time.Minute)
+	discoveryCtx, cancelDiscovery := context.WithCancel(context.Background())
 
 	// User-Agent transparent avec fallback sur l'instance ou le projet
 	userAgent := "anonblossom/1.0 (+https://files.example.com)"
@@ -57,6 +61,8 @@ func NewServer(cfg config.Config) (*Server, error) {
 		cache:     cache,
 		storage:   storageClient,
 		uploads:   make(chan struct{}, cfg.UploadConcurrency),
+		downloads: make(chan struct{}, 2),
+		cancelDiscovery: cancelDiscovery,
 	}
 
 	a.http = &http.Server{
@@ -64,11 +70,11 @@ func NewServer(cfg config.Config) (*Server, error) {
 		Handler:           a.routes(),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       90 * time.Second,
-		MaxHeaderBytes:    1 << 20,
+		MaxHeaderBytes:    32 << 10,
 	}
 
 	// Lancement de la découverte toutes les 30 minutes
-	storageClient.StartDiscovery(context.Background(), 30*time.Minute)
+	storageClient.StartDiscovery(discoveryCtx, 30*time.Minute)
 
 	return a, nil
 }
@@ -77,15 +83,41 @@ func (a *Server) Run() error {
 	log.Printf("listening on %s", a.cfg.ListenAddr)
 	log.Printf("blossom initial seed instances: %s", strings.Join(a.cfg.BlossomURLs, ", "))
 
-	if err := a.http.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return err
+	signals, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	serveErr := make(chan error, 1)
+	go func() {
+		serveErr <- a.http.ListenAndServe()
+	}()
+
+	select {
+	case err := <-serveErr:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return err
+		}
+		return nil
+	case <-signals.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		if err := a.http.Shutdown(shutdownCtx); err != nil {
+			_ = a.http.Close()
+			return err
+		}
+		err := <-serveErr
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return err
+		}
+		return nil
 	}
-	return nil
 }
 
 func (a *Server) Close() {
 	if a == nil {
 		return
+	}
+	if a.cancelDiscovery != nil {
+		a.cancelDiscovery()
 	}
 	if a.cache != nil {
 		a.cache.Close()
