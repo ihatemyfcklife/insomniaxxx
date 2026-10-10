@@ -31,6 +31,10 @@ Uploads are sent to every configured public Blossom instance. Defaults target ge
 
 The encrypted file is content-addressed by SHA-256. The share URL contains the blob hash and the random 256-bit share key — in the URL path in no-JS mode, in the URL fragment in Zero-Knowledge mode (see [Frontend](#frontend)).
 
+## Production deployment
+
+Review [DEPLOYMENT.md](DEPLOYMENT.md) before exposing an instance to public traffic. It covers TLS/proxy configuration, log redaction for bearer share URLs, container resource limits, and the staging release gate.
+
 ## Run
 
 ```sh
