@@ -478,14 +478,35 @@ func (c *Client) Upload(ctx context.Context, src io.ReadSeeker, size int64, hash
 
 	uploaded := 0
 	var firstErr error
-	for _, baseURL := range urls {
-		if err := c.uploadOne(ctx, baseURL, src, size, hash); err != nil {
-			if firstErr == nil {
-				firstErr = fmt.Errorf("%s: %w", publicHost(baseURL), err)
-			}
-			continue
+	// File/bytes-backed readers provide ReaderAt. Give each replica its own
+	// SectionReader so concurrent uploads never race on a shared Seek offset.
+	// The number of fanout goroutines is bounded by SelectUploadTargets (<=3).
+	if reader, ok := src.(io.ReaderAt); ok && size >= 0 {
+		type receipt struct { host string; err error }
+		results := make(chan receipt, len(urls))
+		for _, baseURL := range urls {
+			go func(dest string) {
+				part := io.NewSectionReader(reader, 0, size)
+				results <- receipt{host: publicHost(dest), err: c.uploadOne(ctx, dest, part, size, hash)}
+			}(baseURL)
 		}
-		uploaded++
+		for range urls {
+			result := <-results
+			if result.err != nil {
+				if firstErr == nil { firstErr = fmt.Errorf("%s: %w", result.host, result.err) }
+			} else {
+				uploaded++
+			}
+		}
+	} else {
+		// A generic ReadSeeker is not necessarily safe to read concurrently.
+		for _, baseURL := range urls {
+			if err := c.uploadOne(ctx, baseURL, src, size, hash); err != nil {
+				if firstErr == nil { firstErr = fmt.Errorf("%s: %w", publicHost(baseURL), err) }
+				continue
+			}
+			uploaded++
+		}
 	}
 	// The ordinary encrypted blob (including the RLNC manifest) must have
 	// two independent copies before a share link can be published.
