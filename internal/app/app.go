@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"net/http"
 
 	"anonblossom/internal/blossom"
@@ -15,6 +16,8 @@ type Server struct {
 	storage   *blossom.Client
 	pages     *web.Pages
 	uploads   chan struct{}
+	downloads chan struct{}
+	cancelDiscovery context.CancelFunc
 	http      *http.Server
 	admission *guard.Guard
 	cache     *downloadCache
