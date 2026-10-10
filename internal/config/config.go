@@ -13,9 +13,17 @@ const (
 	DefaultListenAddr          = ":8080"
 	DefaultChunkSize           = 1 << 20
 	DefaultMaxUploadBytes      = 19 << 20
-	DefaultUploadConcurrency   = 2
+	DefaultUploadConcurrency   = 8
 	MaxConfigurableUploadBytes = 64 << 20
-	MaxUploadConcurrency       = 4
+	MaxUploadConcurrency       = 32
+	DefaultDownloadConcurrency = 64
+	MaxDownloadConcurrency     = 256
+	DefaultHeavyDownloads      = 4
+	MaxHeavyDownloads          = 8
+	DefaultRLNCUploads         = 1
+	MaxRLNCUploads             = 4
+	DefaultSpoolBudgetBytes    = 1 << 30
+	MaxSpoolBudgetBytes        = 16 << 30
 	DefaultBlossomURLs         = "https://cdn.hzrd149.com,https://nostr.download,https://blossom.poster.place,https://cdn.sovbit.host"
 )
 
@@ -27,6 +35,10 @@ type Config struct {
 	MaxUploadBytes    int64
 	ChunkSize         int
 	UploadConcurrency int
+	DownloadConcurrency int
+	HeavyDownloads      int
+	RLNCUploads          int
+	SpoolBudgetBytes     int64
 	OnionGuardSecure  bool
 }
 
@@ -39,6 +51,10 @@ func Load() (Config, error) {
 		MaxUploadBytes:    int64(getenvInt("MAX_UPLOAD_BYTES", DefaultMaxUploadBytes)),
 		ChunkSize:         getenvInt("CHUNK_SIZE", DefaultChunkSize),
 		UploadConcurrency: getenvInt("UPLOAD_CONCURRENCY", DefaultUploadConcurrency),
+		DownloadConcurrency: getenvInt("DOWNLOAD_CONCURRENCY", DefaultDownloadConcurrency),
+		HeavyDownloads: getenvInt("HEAVY_DOWNLOAD_CONCURRENCY", DefaultHeavyDownloads),
+		RLNCUploads: getenvInt("RLNC_UPLOAD_CONCURRENCY", DefaultRLNCUploads),
+		SpoolBudgetBytes: int64(getenvInt("SPOOL_BUDGET_BYTES", DefaultSpoolBudgetBytes)),
 		OnionGuardSecure:  parseBool("ONIONGUARD_COOKIE_SECURE", false),
 	}
 
@@ -86,6 +102,21 @@ func (c Config) validate() error {
 	}
 	if c.UploadConcurrency <= 0 || c.UploadConcurrency > MaxUploadConcurrency {
 		return fmt.Errorf("UPLOAD_CONCURRENCY must be between 1 and %d", MaxUploadConcurrency)
+	}
+	if c.DownloadConcurrency < 0 || c.DownloadConcurrency > MaxDownloadConcurrency {
+		return fmt.Errorf("DOWNLOAD_CONCURRENCY must be between 1 and %d", MaxDownloadConcurrency)
+	}
+	if c.HeavyDownloads < 0 || c.HeavyDownloads > MaxHeavyDownloads {
+		return fmt.Errorf("HEAVY_DOWNLOAD_CONCURRENCY must be between 1 and %d", MaxHeavyDownloads)
+	}
+	if c.RLNCUploads < 0 || c.RLNCUploads > MaxRLNCUploads {
+		return fmt.Errorf("RLNC_UPLOAD_CONCURRENCY must be between 1 and %d", MaxRLNCUploads)
+	}
+	if c.SpoolBudgetBytes < 0 || c.SpoolBudgetBytes > MaxSpoolBudgetBytes {
+		return fmt.Errorf("SPOOL_BUDGET_BYTES must be between %d and %d", c.MaxUploadBytes+(4<<20), int64(MaxSpoolBudgetBytes))
+	}
+	if c.SpoolBudgetBytes > 0 && c.SpoolBudgetBytes < c.MaxUploadBytes+(4<<20) {
+		return errors.New("SPOOL_BUDGET_BYTES must hold at least one maximum-size encrypted blob")
 	}
 	return nil
 }

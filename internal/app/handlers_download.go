@@ -19,15 +19,14 @@ import (
 )
 
 func (a *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
-	if !a.acquireDownload(w) {
-		return
-	}
-	defer a.releaseDownload()
-
 	hash, key, ok := cryptbox.ParseDownloadPath(r.URL.Path)
 	if !ok {
 		// URL Zero-Knowledge : /d/<hash>#<clé> — la clé reste dans le fragment.
 		if bareHash, isBare := bareBlobHash(r.URL.Path); isBare {
+			if r.URL.Query().Has("cipher") {
+				if !a.acquireDownload(w) { return }
+				defer a.releaseDownload()
+			}
 			a.handleBareBlob(w, r, bareHash)
 			return
 		}
@@ -35,6 +34,10 @@ func (a *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer badcrypt.Zeroize(key)
+	// Plaintext metadata inspection and server-side decryption are CPU/memory
+	// intensive. Keep their concurrency separate from ciphertext streaming.
+	if !a.acquireHeavyDownload(w) { return }
+	defer a.releaseHeavyDownload()
 
 	// Mode 1 : Page de prévisualisation HTML dédiée
 	if !r.URL.Query().Has("raw") && !r.URL.Query().Has("download") {
@@ -243,7 +246,9 @@ func bareBlobHash(path string) (string, bool) {
 // relais du chiffré brut (?cipher=1) pour un déchiffrement 100 % navigateur.
 func (a *Server) handleBareBlob(w http.ResponseWriter, r *http.Request, hash string) {
 	if r.URL.Query().Has("cipher") {
-		response, err := a.storage.Fetch(r.Context(), hash)
+		// Relay ciphertext only after streaming SHA-256 verification into an
+		// unlinked-at-end temporary file. Never buffer 64 MiB per client in RAM.
+		file, err := a.storage.FetchVerifiedFile(r.Context(), hash)
 		if err != nil {
 			if errors.Is(err, blossom.ErrNotFound) {
 				http.Error(w, "file not found", http.StatusNotFound)
@@ -252,19 +257,13 @@ func (a *Server) handleBareBlob(w http.ResponseWriter, r *http.Request, hash str
 			http.Error(w, "storage unavailable", http.StatusBadGateway)
 			return
 		}
-		defer response.Body.Close()
-
-		blobBytes, readErr := readLimitedBlob(response.Body, a.maxStoredBlobBytes())
-		if readErr != nil {
-			http.Error(w, "stored blob exceeds the configured size limit", http.StatusBadGateway)
-			return
-		}
-
+		defer file.Close()
+		defer os.Remove(file.Name())
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Cache-Control", "private, no-store")
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
 		w.Header().Set("Content-Disposition", "inline")
-		_, _ = w.Write(blobBytes)
+		http.ServeContent(w, r, "ciphertext.bin", time.Time{}, file)
 		return
 	}
 
@@ -288,6 +287,7 @@ func (a *Server) acquireDownload(w http.ResponseWriter) bool {
 	case a.downloads <- struct{}{}:
 		return true
 	default:
+		w.Header().Set("Retry-After", "2")
 		http.Error(w, "too many concurrent downloads; try again shortly", http.StatusServiceUnavailable)
 		return false
 	}
@@ -325,4 +325,23 @@ func readLimitedBlob(r io.Reader, limit int64) ([]byte, error) {
 		return nil, errors.New("blob exceeds configured size limit")
 	}
 	return data, nil
+}
+
+func (a *Server) acquireHeavyDownload(w http.ResponseWriter) bool {
+	if a.heavyDownloads == nil {
+		http.Error(w, "download capacity is unavailable", http.StatusServiceUnavailable)
+		return false
+	}
+	select {
+	case a.heavyDownloads <- struct{}{}:
+		return true
+	default:
+		w.Header().Set("Retry-After", "2")
+		http.Error(w, "too many concurrent decryptions; retry shortly", http.StatusServiceUnavailable)
+		return false
+	}
+}
+
+func (a *Server) releaseHeavyDownload() {
+	<-a.heavyDownloads
 }
