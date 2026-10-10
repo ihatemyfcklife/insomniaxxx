@@ -143,6 +143,45 @@ The encrypted object is intentionally uploaded as `application/octet-stream`: it
 
 When upgrading from an older release, update an existing `.env` too: values already present in `.env` override the new defaults. Replace any old media-only list such as `blossom.nostr.build,blossom.primal.net` with the generic Blossom defaults shown above.
 
+
+## Scaling toward 1,000 simultaneous file transfers
+
+The server now applies **independent admission limits** to:
+- encrypted WASM/ciphertext downloads (`DOWNLOAD_CONCURRENCY`, default 64);
+- server-side No-JS decryption and previews (`HEAVY_DOWNLOAD_CONCURRENCY`, default 4);
+- uploads (`UPLOAD_CONCURRENCY`, default 8);
+- costly RLNC upload encoders (`RLNC_UPLOAD_CONCURRENCY`, default 1).
+
+Encrypted downloads are SHA-256 verified into bounded temporary files **before**
+being served to browsers; they do not allocate a complete encrypted blob in
+the process heap. `SPOOL_BUDGET_BYTES` (default 1 GiB) constrains the effective
+simultaneous ciphertext streams to the floor of the budget divided by the
+configured maximum encrypted blob size. New requests receive HTTP 503 with a
+`Retry-After` header when admission is exhausted.
+
+Run multiple application replicas behind a trusted HTTPS load balancer. Set
+`ONIONGUARD_REDIS_ADDR` and (if needed) `ONIONGUARD_REDIS_PASSWORD` on
+**every** replica to share admission/session state; keep Redis private and
+protected. Without Redis, OnionGuard memory sessions are instance-local and
+load balancing is not guaranteed to preserve CAPTCHA or visitor sessions.
+No upload or download data should be stored in Redis.
+
+Plan tmpfs capacity for the spool budget **plus** active multipart uploads,
+RLNC intermediate files and decrypted No-JS cache. The 1 GiB tmpfs example
+below is a development baseline, **not** adequate for 1 GiB spool + overhead;
+size the filesystem and container disk quota using measured load peaks.
+Use privately operated, independently managed Blossom staging relays. Public
+relays can rate-limit or reject uploads; application performance alone cannot
+guarantee service-wide throughput.
+
+An included `tests/load/cipher-download.mjs` k6 scenario generates 1,000
+virtual download clients; see [load testing instructions](tests/load/README.md).
+A virtual-user count is not proof of 1,000 active transfers. A production claim
+requires a real mixed upload/download test across distinct file sizes and both
+encryption modes, plus failover, memory, disk, ingress, OnionGuard and relay
+verification. The CI unit tests do **not** certify 1,000 simultaneous file
+transfers on any given deployment.
+
 ## Production deployment
 
 The following requirements consolidate the former deployment checklist. **A successful GitHub release or CI check is not proof of production readiness.** Verify the real deployment before serving public traffic. For branch protection and release operations, see [Production release controls](.github/PRODUCTION_RELEASE.md).
@@ -162,7 +201,7 @@ This application has no file database to back up, but it does process sensitive 
 - Set `PUBLIC_BASE_URL` to the exact public HTTPS origin used by clients.
 - Set `ONIONGUARD_COOKIE_SECURE=true` when served over HTTPS. Keep it false only for a native HTTP .onion service.
 - Keep `BLOSSOM_URLS` limited to trusted, publicly reachable Blossom servers that accept generic `application/octet-stream` blobs. The application rejects private/special-use relay destinations and does not follow redirects.
-- `MAX_UPLOAD_BYTES` must be positive and at most 67,108,864 bytes (64 MiB). `UPLOAD_CONCURRENCY` must be between 1 and 4. The application allows at most two concurrent download/preview operations.
+- `MAX_UPLOAD_BYTES` must be positive and at most 67,108,864 bytes (64 MiB). `UPLOAD_CONCURRENCY` must be between 1 and 32. Encrypted downloads and No-JS decryption have separate, resource-budgeted concurrency controls; see [scaling](#scaling-toward-1000-simultaneous-file-transfers).
 
 #### Required redundancy, privacy, and edge controls
 
@@ -190,15 +229,15 @@ Set `PUBLIC_BASE_URL` to the canonical origin and test redirects/cookies through
 
 #### Container and host
 
-The Docker image runs as the distroless non-root user. Run it with a read-only root filesystem and an ephemeral, non-executable temporary filesystem large enough for uploads and short-lived decrypted cache files. Do not mount the temporary directory persistently or back it up. Use explicit memory, CPU, PID, and disk limits; the RLNC upload path keeps intermediate buffers in memory, so provision enough memory for the configured upload size and concurrency. A practical starting point for the 64 MiB maximum is 2 GiB memory and a 1 GiB ephemeral `/tmp`, then load-test and right-size to observed peaks.
+The Docker image runs as the distroless non-root user. Run it with a read-only root filesystem and an ephemeral, non-executable temporary filesystem large enough for uploads and short-lived decrypted cache files. Do not mount the temporary directory persistently or back it up. Use explicit memory, CPU, PID, and disk limits; the RLNC upload path keeps intermediate buffers in memory, so provision enough memory for the configured upload size and concurrency. When increasing concurrent transfers, provision memory and `/tmp` based on measured worst-case work: verified ciphertext spooling, multipart uploads, RLNC buffers, and No-JS plaintext caching. A 1 GiB `/tmp` is insufficient for the default 1 GiB spool budget *plus* other work.
 
 Example for a locally built image (adapt host limits and the proxy to your platform):
 
 ```sh
 docker build --build-arg VERSION="$(git rev-parse --short HEAD)" -t anonblossom:release .
 docker run --detach --name anonblossom \
-  --read-only --tmpfs /tmp:rw,noexec,nosuid,size=1g \
-  --memory=2g --cpus=2 --pids-limit=128 \
+  --read-only --tmpfs /tmp:rw,noexec,nosuid,size=4g \
+  --memory=4g --cpus=2 --pids-limit=128 \
   --restart unless-stopped --env APP_ENV=production --env-file .env \
   -p 127.0.0.1:8080:8080 anonblossom:release
 ```

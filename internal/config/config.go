@@ -13,33 +13,53 @@ const (
 	DefaultListenAddr          = ":8080"
 	DefaultChunkSize           = 1 << 20
 	DefaultMaxUploadBytes      = 19 << 20
-	DefaultUploadConcurrency   = 2
+	DefaultUploadConcurrency   = 8
 	MaxConfigurableUploadBytes = 64 << 20
-	MaxUploadConcurrency       = 4
+	MaxUploadConcurrency       = 32
+	DefaultDownloadConcurrency = 64
+	MaxDownloadConcurrency     = 256
+	DefaultHeavyDownloads      = 4
+	MaxHeavyDownloads          = 8
+	DefaultRLNCUploads         = 1
+	MaxRLNCUploads             = 4
+	DefaultSpoolBudgetBytes    = 1 << 30
+	MaxSpoolBudgetBytes        = 16 << 30
 	DefaultBlossomURLs         = "https://cdn.hzrd149.com,https://nostr.download,https://blossom.poster.place,https://cdn.sovbit.host"
 )
 
 // Config contains runtime settings loaded from environment variables.
 type Config struct {
-	ListenAddr        string
-	BlossomURLs       []string
-	PublicBaseURL     string
-	MaxUploadBytes    int64
-	ChunkSize         int
-	UploadConcurrency int
-	OnionGuardSecure  bool
+	ListenAddr          string
+	BlossomURLs         []string
+	PublicBaseURL       string
+	MaxUploadBytes      int64
+	ChunkSize           int
+	UploadConcurrency   int
+	DownloadConcurrency int
+	HeavyDownloads      int
+	RLNCUploads         int
+	SpoolBudgetBytes    int64
+	OnionGuardSecure    bool
+	GuardRedisAddr      string
+	GuardRedisPassword  string
 }
 
 // Load reads and validates application settings from the environment.
 func Load() (Config, error) {
 	cfg := Config{
-		ListenAddr:        getenv("LISTEN_ADDR", DefaultListenAddr),
-		BlossomURLs:       parseURLs(getenv("BLOSSOM_URLS", DefaultBlossomURLs)),
-		PublicBaseURL:     strings.TrimRight(os.Getenv("PUBLIC_BASE_URL"), "/"),
-		MaxUploadBytes:    int64(getenvInt("MAX_UPLOAD_BYTES", DefaultMaxUploadBytes)),
-		ChunkSize:         getenvInt("CHUNK_SIZE", DefaultChunkSize),
-		UploadConcurrency: getenvInt("UPLOAD_CONCURRENCY", DefaultUploadConcurrency),
-		OnionGuardSecure:  parseBool("ONIONGUARD_COOKIE_SECURE", false),
+		ListenAddr:          getenv("LISTEN_ADDR", DefaultListenAddr),
+		BlossomURLs:         parseURLs(getenv("BLOSSOM_URLS", DefaultBlossomURLs)),
+		PublicBaseURL:       strings.TrimRight(os.Getenv("PUBLIC_BASE_URL"), "/"),
+		MaxUploadBytes:      int64(getenvInt("MAX_UPLOAD_BYTES", DefaultMaxUploadBytes)),
+		ChunkSize:           getenvInt("CHUNK_SIZE", DefaultChunkSize),
+		UploadConcurrency:   getenvInt("UPLOAD_CONCURRENCY", DefaultUploadConcurrency),
+		DownloadConcurrency: getenvInt("DOWNLOAD_CONCURRENCY", DefaultDownloadConcurrency),
+		HeavyDownloads:      getenvInt("HEAVY_DOWNLOAD_CONCURRENCY", DefaultHeavyDownloads),
+		RLNCUploads:         getenvInt("RLNC_UPLOAD_CONCURRENCY", DefaultRLNCUploads),
+		SpoolBudgetBytes:    int64(getenvInt("SPOOL_BUDGET_BYTES", DefaultSpoolBudgetBytes)),
+		OnionGuardSecure:    parseBool("ONIONGUARD_COOKIE_SECURE", false),
+		GuardRedisAddr:      strings.TrimSpace(os.Getenv("ONIONGUARD_REDIS_ADDR")),
+		GuardRedisPassword:  os.Getenv("ONIONGUARD_REDIS_PASSWORD"),
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -51,6 +71,9 @@ func Load() (Config, error) {
 func (c Config) validate() error {
 	if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "production") && c.PublicBaseURL == "" {
 		return errors.New("PUBLIC_BASE_URL is mandatory when APP_ENV=production")
+	}
+	if c.GuardRedisPassword != "" && c.GuardRedisAddr == "" {
+		return errors.New("ONIONGUARD_REDIS_PASSWORD requires ONIONGUARD_REDIS_ADDR")
 	}
 	if len(c.BlossomURLs) == 0 {
 		return errors.New("BLOSSOM_URLS must contain at least one URL")
@@ -86,6 +109,21 @@ func (c Config) validate() error {
 	}
 	if c.UploadConcurrency <= 0 || c.UploadConcurrency > MaxUploadConcurrency {
 		return fmt.Errorf("UPLOAD_CONCURRENCY must be between 1 and %d", MaxUploadConcurrency)
+	}
+	if c.DownloadConcurrency < 0 || c.DownloadConcurrency > MaxDownloadConcurrency {
+		return fmt.Errorf("DOWNLOAD_CONCURRENCY must be between 1 and %d", MaxDownloadConcurrency)
+	}
+	if c.HeavyDownloads < 0 || c.HeavyDownloads > MaxHeavyDownloads {
+		return fmt.Errorf("HEAVY_DOWNLOAD_CONCURRENCY must be between 1 and %d", MaxHeavyDownloads)
+	}
+	if c.RLNCUploads < 0 || c.RLNCUploads > MaxRLNCUploads {
+		return fmt.Errorf("RLNC_UPLOAD_CONCURRENCY must be between 1 and %d", MaxRLNCUploads)
+	}
+	if c.SpoolBudgetBytes < 0 || c.SpoolBudgetBytes > MaxSpoolBudgetBytes {
+		return fmt.Errorf("SPOOL_BUDGET_BYTES must be between %d and %d", c.MaxUploadBytes+(4<<20), int64(MaxSpoolBudgetBytes))
+	}
+	if c.SpoolBudgetBytes > 0 && c.SpoolBudgetBytes < c.MaxUploadBytes+(4<<20) {
+		return errors.New("SPOOL_BUDGET_BYTES must hold at least one maximum-size encrypted blob")
 	}
 	return nil
 }

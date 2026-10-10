@@ -18,7 +18,7 @@ func (a *Server) handleUploadRaw(w http.ResponseWriter, r *http.Request) {
 	defer a.releaseUpload()
 
 	r.Body = http.MaxBytesReader(w, r.Body, a.cfg.MaxUploadBytes+4<<20)
-	if err := r.ParseMultipartForm(16 << 20); err != nil {
+	if err := r.ParseMultipartForm(1 << 20); err != nil {
 		http.Error(w, "payload is too large or malformed", http.StatusBadRequest)
 		return
 	}

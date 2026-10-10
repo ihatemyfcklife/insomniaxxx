@@ -478,14 +478,42 @@ func (c *Client) Upload(ctx context.Context, src io.ReadSeeker, size int64, hash
 
 	uploaded := 0
 	var firstErr error
-	for _, baseURL := range urls {
-		if err := c.uploadOne(ctx, baseURL, src, size, hash); err != nil {
-			if firstErr == nil {
-				firstErr = fmt.Errorf("%s: %w", publicHost(baseURL), err)
-			}
-			continue
+	// File/bytes-backed readers provide ReaderAt. Give each replica its own
+	// SectionReader so concurrent uploads never race on a shared Seek offset.
+	// The number of fanout goroutines is bounded by SelectUploadTargets (<=3).
+	if reader, ok := src.(io.ReaderAt); ok && size >= 0 {
+		type receipt struct {
+			host string
+			err  error
 		}
-		uploaded++
+		results := make(chan receipt, len(urls))
+		for _, baseURL := range urls {
+			go func(dest string) {
+				part := io.NewSectionReader(reader, 0, size)
+				results <- receipt{host: publicHost(dest), err: c.uploadOne(ctx, dest, part, size, hash)}
+			}(baseURL)
+		}
+		for range urls {
+			result := <-results
+			if result.err != nil {
+				if firstErr == nil {
+					firstErr = fmt.Errorf("%s: %w", result.host, result.err)
+				}
+			} else {
+				uploaded++
+			}
+		}
+	} else {
+		// A generic ReadSeeker is not necessarily safe to read concurrently.
+		for _, baseURL := range urls {
+			if err := c.uploadOne(ctx, baseURL, src, size, hash); err != nil {
+				if firstErr == nil {
+					firstErr = fmt.Errorf("%s: %w", publicHost(baseURL), err)
+				}
+				continue
+			}
+			uploaded++
+		}
 	}
 	// The ordinary encrypted blob (including the RLNC manifest) must have
 	// two independent copies before a share link can be published.
@@ -712,45 +740,83 @@ func (c *Client) UploadDistributedShards(ctx context.Context, shards [][]byte, s
 		}
 	}
 
+	if len(shards) == 0 || len(shards) != len(shardHashes) {
+		return nil, errors.New("invalid RLNC shard inventory")
+	}
+	// Multiple shard uploads may proceed concurrently, but the worker pool
+	// caps total relay requests and never holds new copies of shard data.
+	workCtx, cancelWork := context.WithCancel(ctx)
+	defer cancelWork()
+	const maxShardWorkers = 4
+	jobs := make(chan int)
 	usedRelaysMap := make(map[string]bool)
 	var mu sync.Mutex
-
-	for i, shardData := range shards {
-		hash := shardHashes[i]
-		size := int64(len(shardData))
-		storedCopies := 0
-
-		// Cible prioritaire répartie en round-robin
-		primaryTarget := targets[i%len(targets)]
-		orderedTargets := make([]string, 0, len(targets))
-		orderedTargets = append(orderedTargets, primaryTarget)
-		for _, t := range targets {
-			if t != primaryTarget {
-				orderedTargets = append(orderedTargets, t)
+	var wg sync.WaitGroup
+	var firstErr error
+	var errOnce sync.Once
+	worker := func() {
+		defer wg.Done()
+		for i := range jobs {
+			hash := shardHashes[i]
+			shardData := shards[i]
+			size := int64(len(shardData))
+			storedCopies := 0
+			primaryTarget := targets[i%len(targets)]
+			orderedTargets := make([]string, 0, len(targets))
+			orderedTargets = append(orderedTargets, primaryTarget)
+			for _, t := range targets {
+				if t != primaryTarget {
+					orderedTargets = append(orderedTargets, t)
+				}
 			}
-		}
-
-		var lastErr error
-		for _, baseURL := range orderedTargets {
-			reader := bytes.NewReader(shardData)
-			if err := c.uploadOne(ctx, baseURL, reader, size, hash); err != nil {
-				lastErr = err
-				continue
+			var lastErr error
+			for _, baseURL := range orderedTargets {
+				if err := workCtx.Err(); err != nil {
+					return
+				}
+				reader := bytes.NewReader(shardData)
+				if err := c.uploadOne(workCtx, baseURL, reader, size, hash); err != nil {
+					lastErr = err
+					continue
+				}
+				mu.Lock()
+				usedRelaysMap[baseURL] = true
+				mu.Unlock()
+				storedCopies++
+				if storedCopies >= 2 {
+					break
+				}
 			}
-			mu.Lock()
-			usedRelaysMap[baseURL] = true
-			mu.Unlock()
-			storedCopies++
-			if storedCopies >= 2 {
-				break
+			if storedCopies < 2 {
+				errOnce.Do(func() {
+					firstErr = fmt.Errorf("shard %d stored on only %d relays (need two): %w", i, storedCopies, lastErr)
+					cancelWork()
+				})
+				return
 			}
-		}
-
-		if storedCopies < 2 {
-			return nil, fmt.Errorf("shard %d stored on only %d relays (need two): %w", i, storedCopies, lastErr)
 		}
 	}
-
+	workers := min(maxShardWorkers, len(shards))
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go worker()
+	}
+sendLoop:
+	for i := range shards {
+		select {
+		case jobs <- i:
+		case <-workCtx.Done():
+			break sendLoop
+		}
+	}
+	close(jobs)
+	wg.Wait()
+	if firstErr != nil {
+		return nil, firstErr
+	}
+	if err := workCtx.Err(); err != nil {
+		return nil, err
+	}
 	usedRelays := make([]string, 0, len(usedRelaysMap))
 	for r := range usedRelaysMap {
 		usedRelays = append(usedRelays, r)

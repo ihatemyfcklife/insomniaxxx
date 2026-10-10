@@ -50,6 +50,8 @@ jobs:
           node --check internal/app/static/boot.js
           node --check internal/app/static/view.js
           node --check tests/frontend.test.cjs
+          node --check tests/load/cipher-download.mjs
+          node --check tests/load/mixed-transfers.mjs
           node --check internal/app/static/zk-fragment.js
           node --check tests/zk-fragment.test.cjs
           node tests/zk-fragment.test.cjs

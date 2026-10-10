@@ -17,6 +17,7 @@ import (
 	"anonblossom/internal/config"
 	"anonblossom/internal/guard"
 	"anonblossom/internal/web"
+	onionguard "github.com/ihatemyfcklife/onionguard"
 )
 
 func NewServer(cfg config.Config) (*Server, error) {
@@ -33,11 +34,21 @@ func NewServer(cfg config.Config) (*Server, error) {
 		TLSHandshakeTimeout:   10 * time.Second,
 		ResponseHeaderTimeout: 30 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
-		MaxIdleConns:          64,
+		MaxIdleConns:          512,
+		MaxIdleConnsPerHost:   64,
+		MaxConnsPerHost:       128,
 		IdleConnTimeout:       90 * time.Second,
 	}
 
 	guardConfig := guard.Configure(cfg.MaxUploadBytes+4<<20, cfg.OnionGuardSecure)
+	// A shared OnionGuard store is required when load-balancing multiple
+	// application replicas: challenges, sessions and rate limits must agree.
+	if cfg.GuardRedisAddr != "" {
+		guardConfig.StoreConfig.Type = onionguard.StoreTypeRedis
+		guardConfig.StoreConfig.RedisAddr = cfg.GuardRedisAddr
+		guardConfig.StoreConfig.RedisPassword = cfg.GuardRedisPassword
+		guardConfig.StoreConfig.RedisFailClosed = true
+	}
 	admission, err := guard.New(guardConfig)
 	if err != nil {
 		return nil, err
@@ -55,6 +66,30 @@ func NewServer(cfg config.Config) (*Server, error) {
 	storageClient := blossom.NewClientWithOptions(cfg.BlossomURLs, &http.Client{Transport: transport}, userAgent,
 		blossom.ClientOptions{MaxBlobBytes: cfg.MaxUploadBytes + (4 << 20)})
 
+	// Bound disk spooling by the maximum encrypted blob size, not just by
+	// the number of active ciphertext downloads. This prevents large files
+	// from exhausting the temporary filesystem when concurrency increases.
+	if cfg.DownloadConcurrency <= 0 {
+		cfg.DownloadConcurrency = config.DefaultDownloadConcurrency
+	}
+	if cfg.HeavyDownloads <= 0 {
+		cfg.HeavyDownloads = config.DefaultHeavyDownloads
+	}
+	if cfg.RLNCUploads <= 0 {
+		cfg.RLNCUploads = config.DefaultRLNCUploads
+	}
+	if cfg.SpoolBudgetBytes <= 0 {
+		cfg.SpoolBudgetBytes = config.DefaultSpoolBudgetBytes
+	}
+	blobBudget := cfg.MaxUploadBytes + (4 << 20)
+	cipherSlots := cfg.DownloadConcurrency
+	if blobBudget > 0 && int64(cipherSlots) > cfg.SpoolBudgetBytes/blobBudget {
+		cipherSlots = int(cfg.SpoolBudgetBytes / blobBudget)
+	}
+	if cipherSlots < 1 {
+		cipherSlots = 1
+	}
+
 	a := &Server{
 		cfg:             cfg,
 		pages:           pages,
@@ -62,8 +97,9 @@ func NewServer(cfg config.Config) (*Server, error) {
 		cache:           cache,
 		storage:         storageClient,
 		uploads:         make(chan struct{}, cfg.UploadConcurrency),
-		rlncUploads:     make(chan struct{}, 1),
-		downloads:       make(chan struct{}, 2),
+		rlncUploads:     make(chan struct{}, cfg.RLNCUploads),
+		downloads:       make(chan struct{}, cipherSlots),
+		heavyDownloads:  make(chan struct{}, cfg.HeavyDownloads),
 		cancelDiscovery: cancelDiscovery,
 	}
 

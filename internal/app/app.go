@@ -18,6 +18,7 @@ type Server struct {
 	uploads         chan struct{}
 	rlncUploads     chan struct{}
 	downloads       chan struct{}
+	heavyDownloads  chan struct{}
 	cancelDiscovery context.CancelFunc
 	http            *http.Server
 	admission       *guard.Guard
