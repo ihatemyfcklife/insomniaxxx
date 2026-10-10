@@ -127,7 +127,10 @@ func challengeHTML(r *http.Request, challenge *onionguard.CaptchaChallenge, cfg 
           <span class="btn-text">Continue</span>
         </button>
       </form>
-      <small class="muted">Powered by <a href="https://github.com/ihatemyfcklife/onionguard" class="view-relays-link">Onionguard</a>, No JavaScript required.</small>
+      <div class="powered-row">
+        <small class="muted">Powered by <a href="https://github.com/ihatemyfcklife/onionguard" class="view-relays-link">Onionguard</a>, No JavaScript required.</small>
+        <img src="/static/zzz.png" alt="" class="upload-btn-mascot" width="1024" height="1072" draggable="false" aria-hidden="true">
+      </div>
     </article>
     %s
   </main>
@@ -180,6 +183,10 @@ func errorHTML(_ *http.Request, err *onionguard.AdmissionError) string {
     <article role="alert">
       <h1>Unavailable</h1>
       <p>%s</p>
+      <div class="powered-row">
+        <small class="muted">Powered by <a href="https://github.com/ihatemyfcklife/onionguard" class="view-relays-link">Onionguard</a>, No JavaScript required.</small>
+        <img src="/static/zzz.png" alt="" class="upload-btn-mascot" width="1024" height="1072" draggable="false" aria-hidden="true">
+      </div>
       <a href="/" class="view-relays-link">Back</a>
     </article>
     %s

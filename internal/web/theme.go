@@ -314,6 +314,26 @@ const (
 			}
 		}
 
+
+		/* Ligne « powered by » : texte + mascotte côte à côte, alignés en bas. */
+		.powered-row {
+			display: flex;
+			justify-content: space-between;
+			align-items: flex-end;
+			gap: 1rem;
+			flex-wrap: wrap;
+			margin-top: calc(var(--pico-spacing) * 0.5);
+		}
+
+		.powered-row .upload-btn-mascot {
+			position: static;
+			bottom: auto;
+			right: auto;
+			height: 72px;
+			width: auto;
+			max-width: 100%;
+		}
+
 		.btn-action .btn-text {
 			transition: opacity 0s linear 999s, visibility 0s linear 999s;
 		}

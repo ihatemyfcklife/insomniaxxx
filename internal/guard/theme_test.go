@@ -78,3 +78,30 @@ func TestDumpChallengePage(t *testing.T) {
 	})
 	_ = os.WriteFile("/tmp/verify_guard.html", []byte(c), 0644)
 }
+
+func TestPoweredRowRender(t *testing.T) {
+	req := httptest.NewRequest("GET", "http://example.com/test", nil)
+
+	challenge := challengeHTML(req, &onionguard.CaptchaChallenge{
+		ImageDataURI: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='80'><rect width='200' height='80' fill='%23181C25'/></svg>",
+	}, onionguard.CaptchaConfig{
+		Width:        200,
+		Height:       80,
+		EndpointPath: "/captcha",
+		Length:       5,
+	})
+
+	for _, needle := range []string{"/static/zzz.png", `class="powered-row"`, `Powered by <a href="https://github.com/ihatemyfcklife/onionguard"`} {
+		if !strings.Contains(challenge, needle) {
+			t.Fatalf("challengeHTML missing %q: %s", needle, challenge)
+		}
+	}
+
+	err := errorHTML(req, &onionguard.AdmissionError{Message: "Too many requests"})
+	for _, needle := range []string{"/static/zzz.png", `class="powered-row"`} {
+		if !strings.Contains(err, needle) {
+			t.Fatalf("errorHTML missing %q: %s", needle, err)
+		}
+	}
+}
+
