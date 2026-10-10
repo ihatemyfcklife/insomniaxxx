@@ -568,7 +568,6 @@ func (c *Client) UploadDistributedShards(ctx context.Context, shards [][]byte, s
 	return usedRelays, nil
 }
 
-
 // publicRelayURL rejects relay URLs that could reach loopback, private, link-local,
 // multicast, unspecified, or otherwise non-global IP addresses. DNS answers are
 // checked before use; redirects are separately disabled for shard requests.
