@@ -19,6 +19,11 @@ import (
 )
 
 func (a *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
+	if !a.acquireDownload(w) {
+		return
+	}
+	defer a.releaseDownload()
+
 	hash, key, ok := cryptbox.ParseDownloadPath(r.URL.Path)
 	if !ok {
 		// URL Zero-Knowledge : /d/<hash>#<clé> — la clé reste dans le fragment.
@@ -44,7 +49,7 @@ func (a *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 		}
 		defer response.Body.Close()
 
-		blobBytes, err := io.ReadAll(response.Body)
+		blobBytes, err := readLimitedBlob(response.Body, a.maxStoredBlobBytes())
 		if err != nil {
 			a.renderError(w, r, http.StatusBadGateway, "Transfer Error", "Failed to read the encrypted file from storage.")
 			return
@@ -96,7 +101,7 @@ func (a *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 		}
 		defer response.Body.Close()
 
-		blobBytes, err := io.ReadAll(response.Body)
+		blobBytes, err := readLimitedBlob(response.Body, a.maxStoredBlobBytes())
 		if err != nil {
 			return "", cryptbox.FileMeta{}, err
 		}
@@ -226,11 +231,17 @@ func (a *Server) handleBareBlob(w http.ResponseWriter, r *http.Request, hash str
 		}
 		defer response.Body.Close()
 
+		blobBytes, readErr := readLimitedBlob(response.Body, a.maxStoredBlobBytes())
+		if readErr != nil {
+			http.Error(w, "stored blob exceeds the configured size limit", http.StatusBadGateway)
+			return
+		}
+
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Cache-Control", "private, no-store")
 		w.Header().Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
 		w.Header().Set("Content-Disposition", "inline")
-		_, _ = io.Copy(w, response.Body)
+		_, _ = w.Write(blobBytes)
 		return
 	}
 
@@ -243,4 +254,26 @@ func (a *Server) handleBareBlob(w http.ResponseWriter, r *http.Request, hash str
 		ZK:        true,
 		CipherURL: "/d/" + hash + "?cipher=1",
 	})
+}
+
+
+// maxStoredBlobBytes bounds untrusted relay responses to the maximum encrypted object size.
+func (a *Server) maxStoredBlobBytes() int64 {
+	return a.cfg.MaxUploadBytes + (4 << 20)
+}
+
+// readLimitedBlob reads no more than limit+1 bytes so oversized or chunked relay
+// responses cannot grow memory without bound or be mistaken for complete objects.
+func readLimitedBlob(r io.Reader, limit int64) ([]byte, error) {
+	if limit <= 0 {
+		return nil, errors.New("invalid blob size limit")
+	}
+	data, err := io.ReadAll(io.LimitReader(r, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		return nil, errors.New("blob exceeds configured size limit")
+	}
+	return data, nil
 }
