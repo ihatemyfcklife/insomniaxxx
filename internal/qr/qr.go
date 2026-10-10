@@ -6,7 +6,6 @@ import (
 	"html/template"
 	"image/color"
 	"net/http"
-	
 	qrcode "github.com/skip2/go-qrcode"
 )
 

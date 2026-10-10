@@ -293,7 +293,15 @@ func (c *Client) SelectUploadTargets() []string {
 		targets = append(targets, s.URL)
 	}
 
-	// 2. 1 ou 2 relais découverts aléatoirement parmi le top 5 des plus rapides
+	// Persist to configured relays first: discovery membership can change on
+	// restart and must not make previously uploaded ciphertext unfindable.
+	for _, seed := range c.seedURLs {
+		if len(targets) >= 3 { break }
+		if !contains(targets, seed) { targets = append(targets, seed) }
+	}
+
+	// Discovered relays are only a fallback for development setups with
+	// fewer than two configured seeds, never the primary durability policy.
 	if len(targets) < 2 && len(discoveredHealthy) > 0 {
 		poolSize := min(5, len(discoveredHealthy))
 		pool := make([]*ServerStatus, poolSize)

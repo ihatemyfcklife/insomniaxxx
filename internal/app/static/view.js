@@ -49,7 +49,7 @@
     const pendingRaw = sessionStorage.getItem(fragmentSlot);
     if (keyText) {
       sessionStorage.removeItem(fragmentSlot);
-    } else if (pendingRaw && /^\\/d\\/[a-f0-9]{64}$/.test(window.location.pathname)) {
+    } else if (pendingRaw && /^\/d\/[a-f0-9]{64}$/.test(window.location.pathname)) {
       sessionStorage.removeItem(fragmentSlot);
       const pending = JSON.parse(pendingRaw);
       if (pending.expires > Date.now() && /^[A-Za-z0-9_-]{43}$/.test(pending.key)) {
