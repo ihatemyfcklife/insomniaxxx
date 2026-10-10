@@ -256,7 +256,6 @@ func (a *Server) handleBareBlob(w http.ResponseWriter, r *http.Request, hash str
 	})
 }
 
-
 func (a *Server) acquireDownload(w http.ResponseWriter) bool {
 	if a.downloads == nil {
 		http.Error(w, "download capacity is unavailable", http.StatusServiceUnavailable)
