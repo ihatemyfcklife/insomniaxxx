@@ -61,7 +61,7 @@ func (c Config) validate() error {
 	if c.PublicBaseURL != "" {
 		publicURL, err := url.Parse(c.PublicBaseURL)
 		if err != nil || (publicURL.Scheme != "https" && publicURL.Scheme != "http") ||
-			publicURL.Host == "" || publicURL.User != nil || publicURL.RawQuery != "" || publicURL.Fragment != "" {
+			publicURL.Host == "" || publicURL.Path != "" || publicURL.User != nil || publicURL.RawQuery != "" || publicURL.Fragment != "" {
 			return errors.New("PUBLIC_BASE_URL must be an http(s) origin without credentials, query, or fragment")
 		}
 		if publicURL.Scheme == "https" && !c.OnionGuardSecure {
