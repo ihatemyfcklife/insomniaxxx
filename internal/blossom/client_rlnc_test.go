@@ -62,7 +62,7 @@ func TestClient_DistributedUploadAndInnovativeFetch(t *testing.T) {
 	srv3 := createMockServer("srv3")
 	defer srv3.Close()
 
-	client := NewClient([]string{srv1.URL, srv2.URL, srv3.URL}, http.DefaultClient, "test-agent")
+	client := NewClientWithOptions([]string{srv1.URL, srv2.URL, srv3.URL}, http.DefaultClient, "test-agent", ClientOptions{AllowPrivateRelays: true})
 
 	// Création de shards RLNC
 	data := []byte("Testing distributed upload across 3 servers with RLNC K=4 N=6")

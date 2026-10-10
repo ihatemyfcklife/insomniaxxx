@@ -110,7 +110,7 @@ func (a *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 				return "", cryptbox.FileMeta{}, decErr
 			}
 			var manifest rlncbox.Manifest
-			if jsonErr := json.Unmarshal(manifestBuf.Bytes(), &manifest); jsonErr != nil || manifest.Version != 1 {
+			if jsonErr := json.Unmarshal(manifestBuf.Bytes(), &manifest); jsonErr != nil || !validRLNCManifest(manifest, a.cfg.MaxUploadBytes) {
 				return "", cryptbox.FileMeta{}, errors.New("invalid rlnc manifest")
 			}
 
@@ -179,6 +179,23 @@ func (a *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.ServeContent(w, r, meta.Name, time.Time{}, file)
+}
+
+// validRLNCManifest bounds all attacker-controlled parameters before shard downloads/decoding.
+func validRLNCManifest(m rlncbox.Manifest, maxFileSize int64) bool {
+	if m.Version != 1 || m.FileSize <= 0 || m.FileSize > maxFileSize ||
+		m.EncryptedSize <= 0 || m.EncryptedSize > maxFileSize+(4<<20) ||
+		m.ChunkSize <= 0 || m.ChunkSize > 32<<20 ||
+		m.K <= 0 || m.K > 64 || m.N < m.K || m.N > 96 ||
+		len(m.ShardHashes) != m.N || len(m.Relays) > 50 {
+		return false
+	}
+	for _, hash := range m.ShardHashes {
+		if !cryptbox.ValidHash(hash) {
+			return false
+		}
+	}
+	return true
 }
 
 // bareBlobHash accepte les chemins /d/<hash> sans segment de clé.
