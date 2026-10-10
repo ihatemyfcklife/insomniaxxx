@@ -129,8 +129,9 @@ func challengeHTML(r *http.Request, challenge *onionguard.CaptchaChallenge, cfg 
       </form>
       <small class="muted">Powered by <a href="https://github.com/ihatemyfcklife/onionguard" class="view-relays-link">Onionguard</a>, No JavaScript required.</small>
     </article>
+    </article>
+    %s
   </main>
-  %s
 </body>
 </html>`, pageTitle, web.PicoThemeCSS, web.LogoHTML(), html.EscapeString(challenge.ImageDataURI), cfg.Width, cfg.Height, html.EscapeString(cfg.EndpointPath), html.EscapeString(target), html.EscapeString(target), cfg.Length, web.FooterHTML())
 }
@@ -176,15 +177,14 @@ func errorHTML(_ *http.Request, err *onionguard.AdmissionError) string {
 </head>
 <body>
   <main class="container">
-    %s
     <article role="alert">
       <h1>Unavailable</h1>
       <p>%s</p>
       <small class="muted">Powered by <a href="https://github.com/ihatemyfcklife/onionguard" class="view-relays-link">Onionguard</a>, No JavaScript required.</small>
       <a href="/" class="view-relays-link">Back</a>
     </article>
+    %s
   </main>
-  %s
 </body>
 </html>`, pageTitle, web.PicoThemeCSS, web.LogoHTML(), html.EscapeString(message), web.FooterHTML())
 }
@@ -210,14 +210,13 @@ func successHTML(_ *http.Request, target string) string {
 </head>
 <body>
   <main class="container">
-    %s
     <article role="status">
       <h1>Passed</h1>
       <p>Verification passed. Redirecting...</p>
       <a href="%s" class="view-relays-link">Continue</a>
     </article>
+    %s
   </main>
-  %s
 </body>
 </html>`, escapedTarget, pageTitle, web.PicoThemeCSS, web.LogoHTML(), escapedTarget, web.FooterHTML())
 }
