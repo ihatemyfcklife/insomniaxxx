@@ -1,29 +1,29 @@
 FROM golang:1.26-alpine AS build
+
 WORKDIR /src
-COPY go.mod go.sum* ./
-RUN go get github.com/ihatemyfcklife/badcrypt@main \
-    github.com/ihatemyfcklife/badrlnc@main \
-    github.com/ihatemyfcklife/onionguard@main \
-    fiatjaf.com/nostr@latest \
-    && go mod tidy \
-    && go mod download
+ENV GOTOOLCHAIN=local
+
+# Resolve exactly the module versions recorded in go.mod/go.sum. Do not
+# silently upgrade dependencies to @main or @latest during image builds.
+COPY go.mod go.sum ./
+RUN go mod download && go mod verify
+
 COPY . .
 
-RUN apk add --no-cache curl && \
-    curl -sSL -o internal/app/static/pico.min.css https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.fuchsia.min.css
+ARG VERSION=dev
 
-# 1. Copy the official Wasm bridge and build the Wasm bundle
-RUN cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" internal/app/static/wasm_exec.js 2>/dev/null || \
-    cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" internal/app/static/wasm_exec.js && \
+# The stylesheet is checked into the repository at a fixed Pico CSS version.
+# Generate the Wasm binary with the runtime bridge shipped by this Go toolchain.
+RUN cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" internal/app/static/wasm_exec.js && \
     GOOS=js GOARCH=wasm go build -trimpath -ldflags='-s -w' -o internal/app/static/app.wasm ./cmd/wasm
 
-# 2. Build the server binary (it embeds static/*)
-# Auto version: latest git tag available during the Docker build.
-RUN TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo dev) && \
-    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w -X anonblossom/internal/web.Version=$TAG" -o /out/anonblossom ./cmd/anonblossom
+# Static server binary; VERSION can be set to a release tag or commit SHA.
+RUN mkdir -p /out && \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w -X anonblossom/internal/web.Version=${VERSION}" -o /out/anonblossom ./cmd/anonblossom
 
 FROM gcr.io/distroless/static-debian12:nonroot
-COPY --from=build /out/anonblossom /anonblossom
+COPY --from=build --chown=nonroot:nonroot /out/anonblossom /anonblossom
 EXPOSE 8080
 ENV LISTEN_ADDR=:8080
+USER nonroot:nonroot
 ENTRYPOINT ["/anonblossom"]
