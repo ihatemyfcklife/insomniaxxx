@@ -57,6 +57,7 @@ type Client struct {
 	HTTP               *http.Client
 	UserAgent          string
 	allowPrivateRelays bool
+	maxBlobBytes       int64
 	safeHTTP           *http.Client
 }
 
@@ -65,6 +66,8 @@ type ClientOptions struct {
 	// AllowPrivateRelays is intended only for tests using local httptest servers.
 	// Leave false for all production clients.
 	AllowPrivateRelays bool
+	// MaxBlobBytes caps HTTP response reads before hashing. Zero means 68 MiB.
+	MaxBlobBytes int64
 }
 
 // A verified blob is immutable. Handlers can reuse it without allocating
@@ -98,8 +101,12 @@ func NewClientWithOptions(seedURLs []string, httpClient *http.Client, userAgent 
 		HTTP:               httpClient,
 		UserAgent:          userAgent,
 		allowPrivateRelays: options.AllowPrivateRelays,
+		maxBlobBytes:       options.MaxBlobBytes,
 	}
 
+	if c.maxBlobBytes <= 0 || c.maxBlobBytes > maxRelayBlobBytes {
+		c.maxBlobBytes = maxRelayBlobBytes
+	}
 	for _, u := range seedURLs {
 		c.servers[u] = &ServerStatus{
 			URL:    u,
@@ -279,13 +286,15 @@ func (c *Client) SelectUploadTargets() []string {
 
 	targets := make([]string, 0, 3)
 
-	// 1. Un serveur de confiance (.env) en priorité s'il est sain
-	if len(configHealthy) > 0 {
-		targets = append(targets, configHealthy[0].URL)
+	// Prefer independent configured relays: two copies of every shard
+	// remain retrievable after any single configured relay failure.
+	for _, s := range configHealthy {
+		if len(targets) >= 3 { break }
+		targets = append(targets, s.URL)
 	}
 
 	// 2. 1 ou 2 relais découverts aléatoirement parmi le top 5 des plus rapides
-	if len(discoveredHealthy) > 0 {
+	if len(targets) < 2 && len(discoveredHealthy) > 0 {
 		poolSize := min(5, len(discoveredHealthy))
 		pool := make([]*ServerStatus, poolSize)
 		copy(pool, discoveredHealthy[:poolSize])
@@ -311,8 +320,11 @@ func (c *Client) SelectUploadTargets() []string {
 		}
 	}
 
-	if len(targets) == 0 {
-		return c.seedURLs
+	// Ensure configured seeds are still attempted even before the initial
+	// asynchronous health check has completed.
+	for _, seed := range c.seedURLs {
+		if len(targets) >= 3 { break }
+		if !contains(targets, seed) { targets = append(targets, seed) }
 	}
 	return targets
 }
@@ -439,6 +451,8 @@ func (c *Client) StartDiscovery(ctx context.Context, interval time.Duration) {
 }
 
 func (c *Client) Upload(ctx context.Context, src io.ReadSeeker, size int64, hash string) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
+	defer cancel()
 	urls := c.SelectUploadTargets()
 	if len(urls) == 0 {
 		return errors.New("no Blossom instances configured")
@@ -455,8 +469,13 @@ func (c *Client) Upload(ctx context.Context, src io.ReadSeeker, size int64, hash
 		}
 		uploaded++
 	}
-	if uploaded > 0 {
+	// The ordinary encrypted blob (including the RLNC manifest) must have
+	// two independent copies before a share link can be published.
+	if uploaded >= 2 {
 		return nil
+	}
+	if uploaded == 1 {
+		return errors.New("only one relay accepted the blob; redundant upload not complete")
 	}
 	if firstErr != nil {
 		return fmt.Errorf("all target Blossom instances rejected the upload: %w", firstErr)
@@ -535,9 +554,9 @@ func (c *Client) Fetch(ctx context.Context, hash string) (*http.Response, error)
 		if resp.StatusCode == http.StatusOK {
 			// Verify the actual response bytes, not merely the HTTP status.
 			// A compromised relay must not prevent fallback to honest relays.
-			body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxRelayBlobBytes+1))
+			body, readErr := io.ReadAll(io.LimitReader(resp.Body, c.maxBlobBytes+1))
 			resp.Body.Close()
-			if readErr != nil || len(body) > maxRelayBlobBytes {
+			if readErr != nil || int64(len(body)) > c.maxBlobBytes {
 				lastErr = fmt.Sprintf("%s returned an oversized or unreadable blob", publicHost(baseURL))
 				continue
 			}
@@ -651,12 +670,14 @@ func publicHost(raw string) string {
 
 // UploadDistributedShards distribue les N shards sur au moins 2 ou 3 relais distincts.
 func (c *Client) UploadDistributedShards(ctx context.Context, shards [][]byte, shardHashes []string) ([]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer cancel()
 	targets := c.SelectUploadTargets()
 	if len(targets) == 0 {
 		targets = c.GetActiveURLs()
 	}
-	if len(targets) == 0 {
-		return nil, errors.New("no Blossom instances available for distributed upload")
+	if len(targets) < 2 {
+		return nil, errors.New("at least two independent Blossom relays are required for durable RLNC storage")
 	}
 
 	// Si moins de 2 cibles, tenter d'ajouter d'autres serveurs actifs pour garantir au moins 2 ou 3 relais distincts
@@ -677,7 +698,7 @@ func (c *Client) UploadDistributedShards(ctx context.Context, shards [][]byte, s
 	for i, shardData := range shards {
 		hash := shardHashes[i]
 		size := int64(len(shardData))
-		uploaded := false
+		storedCopies := 0
 
 		// Cible prioritaire répartie en round-robin
 		primaryTarget := targets[i%len(targets)]
@@ -699,12 +720,12 @@ func (c *Client) UploadDistributedShards(ctx context.Context, shards [][]byte, s
 			mu.Lock()
 			usedRelaysMap[baseURL] = true
 			mu.Unlock()
-			uploaded = true
-			break
+			storedCopies++
+			if storedCopies >= 2 { break }
 		}
 
-		if !uploaded {
-			return nil, fmt.Errorf("failed to upload shard %d: %w", i, lastErr)
+		if storedCopies < 2 {
+			return nil, fmt.Errorf("shard %d stored on only %d relays (need two): %w", i, storedCopies, lastErr)
 		}
 	}
 
@@ -778,9 +799,17 @@ func (c *Client) FetchInnovativeShards(ctx context.Context, shardHashes []string
 	fetchCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
 
+	// A file manifest is authenticated by its holder, but still potentially
+	// attacker-controlled. It must not turn the server into a public HTTP proxy.
+	// Allow only servers already configured or discovered by this instance.
+	known := make(map[string]bool)
+	c.mu.RLock()
+	for addr := range c.servers { known[addr] = true }
+	for _, addr := range c.seedURLs { known[addr] = true }
+	c.mu.RUnlock()
 	candidateRelays := make([]string, 0, len(relays))
 	for _, r := range relays {
-		if r != "" && !contains(candidateRelays, r) && relayURLAllowed(fetchCtx, r, c.allowPrivateRelays) == nil {
+		if known[r] && !contains(candidateRelays, r) && relayURLAllowed(fetchCtx, r, c.allowPrivateRelays) == nil {
 			candidateRelays = append(candidateRelays, r)
 		}
 	}
