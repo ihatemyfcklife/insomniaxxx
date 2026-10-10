@@ -58,6 +58,16 @@ func (c Config) validate() error {
 			return fmt.Errorf("invalid Blossom URL: %q", raw)
 		}
 	}
+	if c.PublicBaseURL != "" {
+		publicURL, err := url.Parse(c.PublicBaseURL)
+		if err != nil || (publicURL.Scheme != "https" && publicURL.Scheme != "http") ||
+			publicURL.Host == "" || publicURL.User != nil || publicURL.RawQuery != "" || publicURL.Fragment != "" {
+			return errors.New("PUBLIC_BASE_URL must be an http(s) origin without credentials, query, or fragment")
+		}
+		if publicURL.Scheme == "https" && !c.OnionGuardSecure {
+			return errors.New("ONIONGUARD_COOKIE_SECURE must be true when PUBLIC_BASE_URL uses HTTPS")
+		}
+	}
 	if c.MaxUploadBytes <= 0 || c.MaxUploadBytes > MaxConfigurableUploadBytes {
 		return fmt.Errorf("MAX_UPLOAD_BYTES must be between 1 and %d bytes (64 MiB)", MaxConfigurableUploadBytes)
 	}
