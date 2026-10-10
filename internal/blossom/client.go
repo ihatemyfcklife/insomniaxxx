@@ -726,9 +726,10 @@ func relayURLAllowed(ctx context.Context, raw string, allowPrivate bool) error {
 
 // FetchInnovativeShards télécharge en parallèle des shards parmi les relais connus,
 // et annule les requêtes restantes dès que K shards valides et linéairement indépendants sont reçus.
-func (c *Client) FetchInnovativeShards(ctx context.Context, shardHashes []string, relays []string, k int) ([]badrlnc.Shard, error) {
+func (c *Client) FetchInnovativeShards(ctx context.Context, shardHashes []string, relays []string, k int, maxShardBytes int64) ([]badrlnc.Shard, error) {
 	// Bound attacker-controlled manifest fields before starting goroutines or requests.
-	if k <= 0 || k > 64 || len(shardHashes) < k || len(shardHashes) > 96 || len(relays) > maxDiscoveredServers {
+	if k <= 0 || k > 64 || len(shardHashes) < k || len(shardHashes) > 96 ||
+		len(relays) > maxDiscoveredServers || maxShardBytes <= 40 || maxShardBytes > (2<<20) {
 		return nil, errors.New("invalid RLNC manifest limits")
 	}
 	for _, hash := range shardHashes {
@@ -768,6 +769,7 @@ func (c *Client) FetchInnovativeShards(ctx context.Context, shardHashes []string
 
 	resChan := make(chan shardResult, len(shardHashes))
 	var wg sync.WaitGroup
+	fetchSlots := make(chan struct{}, 8)
 
 	for i, h := range shardHashes {
 		wg.Add(1)
@@ -788,8 +790,14 @@ func (c *Client) FetchInnovativeShards(ctx context.Context, shardHashes []string
 				default:
 				}
 
+				select {
+				case fetchSlots <- struct{}{}:
+				case <-fetchCtx.Done():
+					return
+				}
 				req, err := http.NewRequestWithContext(fetchCtx, http.MethodGet, strings.TrimRight(baseURL, "/")+"/"+targetHash, nil)
 				if err != nil {
+					<-fetchSlots
 					lastErr = err
 					continue
 				}
@@ -798,20 +806,27 @@ func (c *Client) FetchInnovativeShards(ctx context.Context, shardHashes []string
 
 				resp, err := safeClient.Do(req)
 				if err != nil {
+					<-fetchSlots
 					lastErr = err
 					continue
 				}
 
 				if resp.StatusCode != http.StatusOK {
 					resp.Body.Close()
+					<-fetchSlots
 					lastErr = fmt.Errorf("HTTP %d from %s", resp.StatusCode, baseURL)
 					continue
 				}
 
-				body, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
+				body, err := io.ReadAll(io.LimitReader(resp.Body, maxShardBytes+1))
 				resp.Body.Close()
+				<-fetchSlots
 				if err != nil {
 					lastErr = err
+					continue
+				}
+				if int64(len(body)) > maxShardBytes {
+					lastErr = errors.New("shard exceeds declared size limit")
 					continue
 				}
 
