@@ -10,13 +10,13 @@ import (
 )
 
 const (
-	DefaultListenAddr        = ":8080"
-	DefaultChunkSize         = 1 << 20
-	DefaultMaxUploadBytes    = 19 << 20
-	DefaultUploadConcurrency = 2
+	DefaultListenAddr          = ":8080"
+	DefaultChunkSize           = 1 << 20
+	DefaultMaxUploadBytes      = 19 << 20
+	DefaultUploadConcurrency   = 2
 	MaxConfigurableUploadBytes = 64 << 20
-	MaxUploadConcurrency = 4
-	DefaultBlossomURLs       = "https://cdn.hzrd149.com,https://nostr.download,https://blossom.poster.place,https://cdn.sovbit.host"
+	MaxUploadConcurrency       = 4
+	DefaultBlossomURLs         = "https://cdn.hzrd149.com,https://nostr.download,https://blossom.poster.place,https://cdn.sovbit.host"
 )
 
 // Config contains runtime settings loaded from environment variables.
