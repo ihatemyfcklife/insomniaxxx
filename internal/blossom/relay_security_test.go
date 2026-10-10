@@ -11,6 +11,10 @@ func TestPublicRelayURLRejectsUnsafeDestinations(t *testing.T) {
 		"http://10.0.0.1",
 		"http://192.168.1.10",
 		"http://169.254.169.254",
+		"http://100.64.0.1",
+		"https://192.0.2.1",
+		"https://198.18.0.1",
+		"https://[2001:db8::1]",
 		"http://[::1]",
 		"http://localhost",
 		"http://service.local",
@@ -29,5 +33,22 @@ func TestPublicRelayURLRejectsUnsafeDestinations(t *testing.T) {
 func TestPublicRelayURLAcceptsPublicIP(t *testing.T) {
 	if err := publicRelayURL(context.Background(), "https://8.8.8.8"); err != nil {
 		t.Fatalf("expected public IP relay URL to pass: %v", err)
+	}
+}
+
+func TestCleanBlossomURLRejectsLocalAndSpecialUseDestinations(t *testing.T) {
+	for _, raw := range []string{
+		"http://localhost",
+		"http://service.local",
+		"http://service.internal",
+		"http://100.64.0.1",
+		"https://[::1]",
+		"https://[2001:db8::1]",
+	} {
+		t.Run(raw, func(t *testing.T) {
+			if cleaned, ok := cleanBlossomURL(raw); ok {
+				t.Fatalf("expected unsafe discovery URL %q to be rejected; got %q", raw, cleaned)
+			}
+		})
 	}
 }
