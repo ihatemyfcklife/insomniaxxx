@@ -92,7 +92,7 @@ func TestClient_DistributedUploadAndInnovativeFetch(t *testing.T) {
 	}
 
 	// 2. Fetch innovant en parallèle
-	recoveredShards, err := client.FetchInnovativeShards(ctx, shardHashes, usedRelays, k)
+	recoveredShards, err := client.FetchInnovativeShards(ctx, shardHashes, usedRelays, k, int64(len(rawShards[0])))
 	if err != nil {
 		t.Fatalf("FetchInnovativeShards failed: %v", err)
 	}
