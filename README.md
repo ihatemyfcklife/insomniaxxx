@@ -16,7 +16,7 @@ Install them with:
 make deps
 ```
 
-Go 1.26.0 or newer is required. The `go` directive in `go.mod` is the source of truth: the Docker build is pinned to `golang:1.26-alpine` to match it, and CI builds with the latest stable Go release, which is always at or above that minimum.
+Go 1.26.0 or newer is required (see the `go` directive in `go.mod`). The Docker build uses `golang:1.27.0-alpine`, and CI tests with Go 1.27.x to match the production build toolchain.
 
 ## Configuration
 
@@ -25,6 +25,7 @@ Copy `.env.example` and configure the deployment environment.
 ```sh
 export BLOSSOM_URLS=https://cdn.hzrd149.com,https://nostr.download,https://blossom.poster.place,https://cdn.sovbit.host
 export PUBLIC_BASE_URL=https://files.example
+export ONIONGUARD_COOKIE_SECURE=true
 ```
 
 Uploads are sent to every configured public Blossom instance. Defaults target general-purpose public Blossom servers that are used for generic nsite/blob storage. Downloads try the instances in order until the encrypted blob is found. Media-only instances such as the free nostr.build endpoint are intentionally not defaults because they reject opaque `application/octet-stream` blobs.
