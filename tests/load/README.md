@@ -43,6 +43,35 @@ A 1,000-goroutine Go admission unit test is included in the repository; it
 only verifies bounded concurrency/refusal handling, not throughput. No test
 may write thousands of blobs to public relays without operator permission.
 
+## Mixed 1,000-VU scenario
+
+Prepare TWO staging-only fixtures:
+- `K6_CIPHER_FILE`: a correctly encrypted cryptbox blob or RLNC shard accepted
+  by `/upload-raw`. Do not pass plaintext to this endpoint.
+- `K6_NOJS_FILE`: a synthetic (non-sensitive) plaintext file accepted by
+  `/upload`.
+- `K6_NOJS_SHARE_PATH`: an existing No-JS /d/hash/key path on staging.
+  **Never** share this link or record the full request URL in logs.
+- `K6_BLOB_HASH`: the 64-hex-digit hash of an existing seeded encrypted blob.
+
+```sh
+K6_BASE_URL=https://staging.example.com \
+K6_BLOB_HASH=<staging-ciphertext-sha256> \
+K6_NOJS_SHARE_PATH=/d/<staging-hash>/<staging-test-key> \
+K6_CIPHER_FILE=tests/fixtures/synthetic-encrypted.blob \
+K6_NOJS_FILE=tests/fixtures/synthetic-plain.bin \
+K6_SESSION_COOKIE=<valid-staging-only-cookie> \
+K6_VUS=1000 K6_DURATION=5m \
+k6 run tests/load/mixed-transfers.mjs
+```
+
+This splits virtual users equally across ciphertext downloads, No-JS plaintext
+downloads, encrypted uploads and No-JS plaintext uploads. It exercises HTTP
+routes but does **not** itself prove browser WASM/CAPTCHA semantics. Do not
+run until a secured staging cluster, Redis session strategy, sufficient test
+generators, and PRIVATE Blossom storage are ready. Do not store test keys in
+shell history or log complete request URLs.
+
 ## Capacity notes
 
 - DOWNLOAD_CONCURRENCY is the configured maximum verified ciphertext streams
