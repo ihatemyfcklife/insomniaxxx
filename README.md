@@ -83,6 +83,12 @@ When WebAssembly is available, `boot.js` loads `app.wasm` and takes over the for
 
 Browsers never send URL fragments to a server, so in this mode the server relays ciphertext only and never receives the plaintext or the share key. This mode requires JavaScript and WebAssembly: it is unavailable in Tor Browser at Safest level, and its guarantees apply only to files that were actually uploaded through this path (files uploaded in no-JS mode were encrypted by the server).
 
+## Cryptographic format and compatibility
+
+The file and manifest use ChaCha20-Poly1305, **not XChaCha20-Poly1305**. Manifest format v2 derives a separate encryption key from the share key, eliminating the previous key-and-nonce reuse between RLNC file and manifest. Legacy v1 manifest links remain readable for compatibility, but their existing ciphertext is not retroactively made safe. Re-upload sensitive legacy files and distribute new links.
+
+Zero-Knowledge mode generates QR codes locally in WebAssembly. Share links have bearer secrets in URL fragments; never send complete share links to server-side QR endpoints, access logs, analytics, or error reporting. No-JS mode intentionally exposes the key to the server and must be deployed with strict URL log redaction.
+
 ## Storage and privacy model
 
 There is no application database, account system, cookie-based file registry, or persistent upload index. The only persistent file storage is the configured public Blossom instances.

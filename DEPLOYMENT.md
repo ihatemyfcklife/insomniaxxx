@@ -41,6 +41,12 @@ Do not put secrets directly in image layers or Docker build arguments. Keep envi
 - The application has no database or upload index. Public Blossom operators control the persistence and availability of stored ciphertext. There is no application-level revocation or backup for objects stored on those external relays.
 - The application and relays see network and blob metadata. Do not promise anonymity or resistance to traffic analysis.
 
+## Security migration after the manifest v2 fix
+
+Manifest v1 and file encryption previously used the same share key with a reset ChaCha20-Poly1305 nonce counter. Version 2 manifests now use a domain-separated key. Older v1 manifest links remain decryptable for compatibility, **not** cryptographically repaired. Treat previously shared sensitive RLNC files as potentially exposed: re-upload those files after deploying the fix and redistribute their new links. Rotating the service binary alone cannot fix existing ciphertext stored on external Blossom relays.
+
+The Zero-Knowledge QR code is generated inside the browser. Verify with browser developer tools that no request to `/qr?data=` carries a fragment-bearing share link. For all deployments, redact request paths, query strings and referrers from every proxy, CDN, WAF, and monitoring service.
+
 ## Release gate
 
 Before production traffic, all of the following should be evidenced for the exact release commit:

@@ -81,7 +81,7 @@ func TestAllPagesRenderLogo(t *testing.T) {
 			if !strings.Contains(rec.Body.String(), `class="site-logo"`) {
 				t.Fatalf("%s does not contain site-logo", tc.name)
 			}
-			if !strings.Contains(rec.Body.String(), `Anonymous file sharing. No accounts. No logs. Decentralized.`) {
+			if !strings.Contains(rec.Body.String(), `File sharing. No accounts. Decentralized relays.`) {
 				t.Fatalf("%s does not contain site-tagline", tc.name)
 			}
 		})
@@ -101,7 +101,7 @@ func TestLogoHTML(t *testing.T) {
 		`draggable="false"`,
 		`<header>`,
 		`class="muted"`,
-		`Anonymous file sharing. No accounts. No logs. Decentralized.`,
+		`File sharing. No accounts. Decentralized relays.`,
 	} {
 		if !strings.Contains(html, needle) {
 			t.Fatalf("LogoHTML missing %q", needle)
