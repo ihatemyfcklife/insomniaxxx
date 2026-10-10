@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"net"
 	"net/http"
 	"net/url"
 	"sort"
@@ -567,11 +568,53 @@ func (c *Client) UploadDistributedShards(ctx context.Context, shards [][]byte, s
 	return usedRelays, nil
 }
 
+
+// publicRelayURL rejects relay URLs that could reach loopback, private, link-local,
+// multicast, unspecified, or otherwise non-global IP addresses. DNS answers are
+// checked before use; redirects are separately disabled for shard requests.
+func publicRelayURL(ctx context.Context, raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Hostname() == "" || u.User != nil {
+		return errors.New("invalid relay URL")
+	}
+	host := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
+	for _, suffix := range []string{".localhost", ".local", ".internal", ".lan"} {
+		if host == strings.TrimPrefix(suffix, ".") || strings.HasSuffix(host, suffix) {
+			return errors.New("non-public relay hostname")
+		}
+	}
+	var ips []net.IP
+	if ip := net.ParseIP(host); ip != nil {
+		ips = []net.IP{ip}
+	} else {
+		answers, lookupErr := net.DefaultResolver.LookupIPAddr(ctx, host)
+		if lookupErr != nil || len(answers) == 0 {
+			return errors.New("relay hostname did not resolve")
+		}
+		for _, answer := range answers {
+			ips = append(ips, answer.IP)
+		}
+	}
+	for _, ip := range ips {
+		if ip == nil || !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
+			return errors.New("relay resolves to a non-public IP address")
+		}
+	}
+	return nil
+}
+
 // FetchInnovativeShards télécharge en parallèle des shards parmi les relais connus,
 // et annule les requêtes restantes dès que K shards valides et linéairement indépendants sont reçus.
 func (c *Client) FetchInnovativeShards(ctx context.Context, shardHashes []string, relays []string, k int) ([]badrlnc.Shard, error) {
-	if k <= 0 || len(shardHashes) < k {
-		return nil, errors.New("invalid k or shard hashes")
+	// Bound attacker-controlled manifest fields before starting goroutines or requests.
+	if k <= 0 || k > 64 || len(shardHashes) < k || len(shardHashes) > 96 || len(relays) > maxDiscoveredServers {
+		return nil, errors.New("invalid RLNC manifest limits")
+	}
+	for _, hash := range shardHashes {
+		decoded, err := hex.DecodeString(hash)
+		if err != nil || len(decoded) != sha256.Size {
+			return nil, errors.New("invalid shard hash")
+		}
 	}
 
 	fetchCtx, cancel := context.WithCancel(ctx)
@@ -579,17 +622,27 @@ func (c *Client) FetchInnovativeShards(ctx context.Context, shardHashes []string
 
 	candidateRelays := make([]string, 0, len(relays))
 	for _, r := range relays {
-		if r != "" && !contains(candidateRelays, r) {
+		if r != "" && !contains(candidateRelays, r) && publicRelayURL(fetchCtx, r) == nil {
 			candidateRelays = append(candidateRelays, r)
 		}
 	}
 	for _, r := range c.GetActiveURLs() {
-		if !contains(candidateRelays, r) {
+		if !contains(candidateRelays, r) && publicRelayURL(fetchCtx, r) == nil {
 			candidateRelays = append(candidateRelays, r)
 		}
 	}
 	if len(candidateRelays) == 0 {
-		return nil, errors.New("no relays available to fetch shards")
+		return nil, errors.New("no safe public relays available to fetch shards")
+	}
+
+	// Relays are untrusted: do not follow redirects, which could target private services.
+	baseClient := c.HTTP
+	if baseClient == nil {
+		baseClient = http.DefaultClient
+	}
+	safeClient := *baseClient
+	safeClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
 	}
 
 	type shardResult struct {
@@ -628,7 +681,7 @@ func (c *Client) FetchInnovativeShards(ctx context.Context, shardHashes []string
 				req.Header.Set("User-Agent", c.UserAgent)
 				req.Header.Set("Accept", "application/octet-stream")
 
-				resp, err := c.HTTP.Do(req)
+				resp, err := safeClient.Do(req)
 				if err != nil {
 					lastErr = err
 					continue
