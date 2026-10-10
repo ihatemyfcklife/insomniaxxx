@@ -73,7 +73,7 @@ OnionGuard's wait-room and CAPTCHA pages use the same Pico CSS link and the same
 
 ### No-JS mode (server-side)
 
-The classic HTML form posts the file to the server, which encrypts it with `badcrypt` (XChaCha20-Poly1305 AEAD) and, above the RLNC threshold, additionally splits the ciphertext into RLNC shards before storing it on the configured Blossom instances. The share link carries the key in the URL path: `/d/<hash>/<key>`.
+The classic HTML form posts the file to the server, which encrypts it with `badcrypt` (ChaCha20-Poly1305 AEAD) and, above the RLNC threshold, additionally splits the ciphertext into RLNC shards before storing it on the configured Blossom instances. The share link carries the key in the URL path: `/d/<hash>/<key>`.
 
 No JavaScript runs at any point, so this path works in Tor Browser at Safest level and in any browser with scripting disabled. It is also the fallback path: if the Wasm bundle is missing or fails to load, the page silently falls back to the plain HTML form. Because the upload, the preview, and the download are all handled by the server in this mode, the server sees the plaintext file, its name and MIME type, and the share key.
 
@@ -105,7 +105,7 @@ What the design does and does not give you:
 - **Zero-Knowledge mode limits the server to ciphertext.** The server still relays the encrypted bytes and can observe their size, hashes, and request timing, but it never receives the plaintext or the key, and the key stays in the browser's URL fragment. This protects file content and the key from the server — not from anything else.
 - **Neither mode hides metadata.** Your IP address (or Tor circuit), request timing, ciphertext size, and blob hash are visible to the application server and to every Blossom instance that serves the blob. This project makes no anonymity or traffic-analysis guarantee; use Tor or a VPN if that is part of your threat model.
 - **Share links are bearer secrets.** Anyone holding the complete link — key included — can decrypt the file. There are no accounts, hence no access list and no revocation: a link keeps working until the blob disappears from every configured relay, and copies already made by readers cannot be recalled.
-- **Promised:** stored bytes are encrypted with XChaCha20-Poly1305 before they reach Blossom in both modes, and no server-side database of files, keys, or users exists. **Not promised:** that the server operator cannot read files uploaded in no-JS mode, that metadata is hidden, or that any particular deployment's operator is trustworthy — review the code or run your own instance.
+- **Promised:** stored bytes are encrypted with ChaCha20-Poly1305 before they reach Blossom in both modes, and no server-side database of files, keys, or users exists. **Not promised:** that the server operator cannot read files uploaded in no-JS mode, that metadata is hidden, or that any particular deployment's operator is trustworthy — review the code or run your own instance.
 
 ## Troubleshooting
 

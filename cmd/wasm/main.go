@@ -12,6 +12,7 @@ import (
 	"github.com/ihatemyfcklife/badrlnc"
 
 	"anonblossom/internal/cryptbox"
+	qrcode "github.com/skip2/go-qrcode"
 	"anonblossom/internal/rlncbox"
 )
 
@@ -24,6 +25,8 @@ func main() {
 	js.Global().Set("wasmEncodeRLNC", js.FuncOf(encodeRLNC))
 	js.Global().Set("wasmDecodeRLNC", js.FuncOf(decodeRLNC))
 	js.Global().Set("wasmIsInnovative", js.FuncOf(isInnovative))
+	js.Global().Set("wasmGenerateQR", js.FuncOf(generateQR))
+	js.Global().Set("wasmSHA256", js.FuncOf(hashBytes))
 
 	<-c
 }
@@ -129,7 +132,7 @@ func decryptBlob(this js.Value, args []js.Value) any {
 	defer badcrypt.Zeroize(key)
 
 	var plainBuf bytes.Buffer
-	meta, err := cryptbox.DecryptTo(&plainBuf, bytes.NewReader(cipherBytes), int64(len(cipherBytes)), key, 50<<20)
+	meta, err := cryptbox.DecryptTo(&plainBuf, bytes.NewReader(cipherBytes), int64(len(cipherBytes)), key, 64<<20)
 	if err != nil {
 		return errorObj("échec déchiffrement: " + err.Error())
 	}
@@ -241,6 +244,27 @@ func isInnovative(this js.Value, args []js.Value) any {
 	}
 
 	return rlncbox.IsInnovative(basis, newShard.Mask)
+}
+
+// Generate the QR image in-browser to keep #fragment secrets off the wire.
+func generateQR(this js.Value, args []js.Value) any {
+	if len(args) < 1 { return errorObj("missing QR value") }
+	payload := args[0].String()
+	if len(payload) == 0 || len(payload) > 4096 { return errorObj("invalid QR value") }
+	png, err := qrcode.Encode(payload, qrcode.Medium, 256)
+	if err != nil { return errorObj("QR generation failed") }
+	out := js.Global().Get("Uint8Array").New(len(png))
+	js.CopyBytesToJS(out, png)
+	return out
+}
+
+// Hash shard bytes in WASM to verify the manifest before accepting them.
+func hashBytes(this js.Value, args []js.Value) any {
+	if len(args) < 1 { return errorObj("missing data") }
+	buf := make([]byte, args[0].Get("length").Int())
+	js.CopyBytesToGo(buf, args[0])
+	hash := sha256.Sum256(buf)
+	return hex.EncodeToString(hash[:])
 }
 
 func errorObj(msg string) js.Value {

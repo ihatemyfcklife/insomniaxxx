@@ -53,6 +53,10 @@ func DecryptTo(w io.Writer, body io.Reader, contentLength int64, key []byte, max
 	if !ok {
 		return FileMeta{}, errors.New("invalid encrypted blob")
 	}
+	if UsesManifestKey(outer) {
+		key = ManifestKey(key)
+		defer badcrypt.Zeroize(key)
+	}
 	if contentLength < outerHeaderSize+encryptedPacketOverhead {
 		return FileMeta{}, errors.New("invalid encrypted blob")
 	}
@@ -163,6 +167,10 @@ func InspectShare(body io.Reader, key []byte) (FileMeta, error) {
 	chunkSize, ok := ParseOuterHeader(outer)
 	if !ok {
 		return FileMeta{}, errors.New("invalid encrypted blob")
+	}
+	if UsesManifestKey(outer) {
+		key = ManifestKey(key)
+		defer badcrypt.Zeroize(key)
 	}
 
 	packetSize := MaxEncryptedPacketSize(chunkSize)
