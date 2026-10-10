@@ -6,7 +6,7 @@ func TestProductionRequiresCanonicalOrigin(t *testing.T) {
 	t.Setenv("APP_ENV", "production")
 	cfg := Config{
 		ListenAddr:     ":8080",
-		BlossomURLs:    []string{"https://blossom.example"},
+		BlossomURLs:    []string{"https://blossom.example", "https://backup.example"},
 		MaxUploadBytes: 19 << 20, ChunkSize: 1 << 20, UploadConcurrency: 2,
 	}
 	if err := cfg.validate(); err == nil {

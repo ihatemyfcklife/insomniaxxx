@@ -52,7 +52,8 @@ func NewServer(cfg config.Config) (*Server, error) {
 		userAgent = fmt.Sprintf("anonblossom/1.0 (+%s)", cfg.PublicBaseURL)
 	}
 
-	storageClient := blossom.NewClient(cfg.BlossomURLs, &http.Client{Transport: transport}, userAgent)
+	storageClient := blossom.NewClientWithOptions(cfg.BlossomURLs, &http.Client{Transport: transport}, userAgent,
+		blossom.ClientOptions{MaxBlobBytes: cfg.MaxUploadBytes + (4 << 20)})
 
 	a := &Server{
 		cfg:             cfg,
