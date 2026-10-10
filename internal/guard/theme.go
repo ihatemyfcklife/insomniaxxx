@@ -61,8 +61,9 @@ func waitRoomHTML(_ *http.Request, retry time.Duration) string {
       <h1>Checking</h1>
       <p>Please wait %d seconds...</p>
       <small class="muted">This page refreshes automatically. Powered by <a href="https://github.com/ihatemyfcklife/onionguard" class="view-relays-link">Onionguard</a>, No JavaScript required.</small>
-    %s
+    </article>
   </main>
+  %s
 </body>
 </html>`, seconds, pageTitle, web.PicoThemeCSS, web.LogoHTML(), seconds, web.FooterHTML())
 }
@@ -128,8 +129,8 @@ func challengeHTML(r *http.Request, challenge *onionguard.CaptchaChallenge, cfg 
       </form>
       <small class="muted">Powered by <a href="https://github.com/ihatemyfcklife/onionguard" class="view-relays-link">Onionguard</a>, No JavaScript required.</small>
     </article>
-    %s
   </main>
+  %s
 </body>
 </html>`, pageTitle, web.PicoThemeCSS, web.LogoHTML(), html.EscapeString(challenge.ImageDataURI), cfg.Width, cfg.Height, html.EscapeString(cfg.EndpointPath), html.EscapeString(target), html.EscapeString(target), cfg.Length, web.FooterHTML())
 }
@@ -182,8 +183,8 @@ func errorHTML(_ *http.Request, err *onionguard.AdmissionError) string {
       <small class="muted">Powered by <a href="https://github.com/ihatemyfcklife/onionguard" class="view-relays-link">Onionguard</a>, No JavaScript required.</small>
       <a href="/" class="view-relays-link">Back</a>
     </article>
-    %s
   </main>
+  %s
 </body>
 </html>`, pageTitle, web.PicoThemeCSS, web.LogoHTML(), html.EscapeString(message), web.FooterHTML())
 }
@@ -215,8 +216,8 @@ func successHTML(_ *http.Request, target string) string {
       <p>Verification passed. Redirecting...</p>
       <a href="%s" class="view-relays-link">Continue</a>
     </article>
-    %s
   </main>
+  %s
 </body>
 </html>`, escapedTarget, pageTitle, web.PicoThemeCSS, web.LogoHTML(), escapedTarget, web.FooterHTML())
 }
