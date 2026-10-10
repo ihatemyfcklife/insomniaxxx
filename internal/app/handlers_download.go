@@ -120,7 +120,7 @@ func (a *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Téléchargement parallèle de K shards innovants parmi les relais
-			shards, fetchErr := a.storage.FetchInnovativeShards(r.Context(), manifest.ShardHashes, manifest.Relays, manifest.K)
+			shards, fetchErr := a.storage.FetchInnovativeShards(r.Context(), manifest.ShardHashes, manifest.Relays, manifest.K, int64(manifest.ChunkSize)+40)
 			if fetchErr != nil {
 				return "", cryptbox.FileMeta{}, fetchErr
 			}
@@ -188,11 +188,18 @@ func (a *Server) handleDownload(w http.ResponseWriter, r *http.Request) {
 
 // validRLNCManifest bounds all attacker-controlled parameters before shard downloads/decoding.
 func validRLNCManifest(m rlncbox.Manifest, maxFileSize int64) bool {
-	if m.Version != 1 || m.FileSize <= 0 || m.FileSize > maxFileSize ||
+	if m.Version != 1 || m.FileSize <= rlncbox.Threshold || m.FileSize > maxFileSize ||
 		m.EncryptedSize <= 0 || m.EncryptedSize > maxFileSize+(4<<20) ||
-		m.ChunkSize <= 0 || m.ChunkSize > 32<<20 ||
 		m.K <= 0 || m.K > 64 || m.N < m.K || m.N > 96 ||
 		len(m.ShardHashes) != m.N || len(m.Relays) > 50 {
+		return false
+	}
+	expectedK, expectedN := rlncbox.CalculateKN(m.FileSize)
+	if m.K != expectedK || m.N != expectedN {
+		return false
+	}
+	expectedChunkSize := (m.EncryptedSize + int64(m.K) - 1) / int64(m.K)
+	if m.ChunkSize <= 0 || int64(m.ChunkSize) != expectedChunkSize {
 		return false
 	}
 	for _, hash := range m.ShardHashes {
