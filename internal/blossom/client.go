@@ -47,12 +47,20 @@ type ServerStatus struct {
 }
 
 type Client struct {
-	mu         sync.RWMutex
-	servers    map[string]*ServerStatus
-	activeURLs []string
-	seedURLs   []string
-	HTTP       *http.Client
-	UserAgent  string
+	mu                 sync.RWMutex
+	servers            map[string]*ServerStatus
+	activeURLs         []string
+	seedURLs           []string
+	HTTP               *http.Client
+	UserAgent          string
+	allowPrivateRelays bool
+}
+
+// ClientOptions controls optional behavior for isolated environments.
+type ClientOptions struct {
+	// AllowPrivateRelays is intended only for tests using local httptest servers.
+	// Leave false for all production clients.
+	AllowPrivateRelays bool
 }
 
 type Descriptor struct {
@@ -64,12 +72,18 @@ type Descriptor struct {
 }
 
 func NewClient(seedURLs []string, httpClient *http.Client, userAgent string) *Client {
+	return NewClientWithOptions(seedURLs, httpClient, userAgent, ClientOptions{})
+}
+
+// NewClientWithOptions creates a client with explicit relay policy options.
+func NewClientWithOptions(seedURLs []string, httpClient *http.Client, userAgent string, options ClientOptions) *Client {
 	c := &Client{
-		servers:    make(map[string]*ServerStatus),
-		seedURLs:   seedURLs,
-		activeURLs: seedURLs,
-		HTTP:       httpClient,
-		UserAgent:  userAgent,
+		servers:            make(map[string]*ServerStatus),
+		seedURLs:           seedURLs,
+		activeURLs:         seedURLs,
+		HTTP:               httpClient,
+		UserAgent:          userAgent,
+		allowPrivateRelays: options.AllowPrivateRelays,
 	}
 
 	for _, u := range seedURLs {
@@ -572,14 +586,20 @@ func (c *Client) UploadDistributedShards(ctx context.Context, shards [][]byte, s
 // multicast, unspecified, or otherwise non-global IP addresses. DNS answers are
 // checked before use; redirects are separately disabled for shard requests.
 func publicRelayURL(ctx context.Context, raw string) error {
+	return relayURLAllowed(ctx, raw, false)
+}
+
+func relayURLAllowed(ctx context.Context, raw string, allowPrivate bool) error {
 	u, err := url.Parse(raw)
 	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Hostname() == "" || u.User != nil {
 		return errors.New("invalid relay URL")
 	}
 	host := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
-	for _, suffix := range []string{".localhost", ".local", ".internal", ".lan"} {
-		if host == strings.TrimPrefix(suffix, ".") || strings.HasSuffix(host, suffix) {
-			return errors.New("non-public relay hostname")
+	if !allowPrivate {
+		for _, suffix := range []string{".localhost", ".local", ".internal", ".lan"} {
+			if host == strings.TrimPrefix(suffix, ".") || strings.HasSuffix(host, suffix) {
+				return errors.New("non-public relay hostname")
+			}
 		}
 	}
 	var ips []net.IP
@@ -594,9 +614,11 @@ func publicRelayURL(ctx context.Context, raw string) error {
 			ips = append(ips, answer.IP)
 		}
 	}
-	for _, ip := range ips {
-		if ip == nil || !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
-			return errors.New("relay resolves to a non-public IP address")
+	if !allowPrivate {
+		for _, ip := range ips {
+			if ip == nil || !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
+				return errors.New("relay resolves to a non-public IP address")
+			}
 		}
 	}
 	return nil
@@ -621,12 +643,12 @@ func (c *Client) FetchInnovativeShards(ctx context.Context, shardHashes []string
 
 	candidateRelays := make([]string, 0, len(relays))
 	for _, r := range relays {
-		if r != "" && !contains(candidateRelays, r) && publicRelayURL(fetchCtx, r) == nil {
+		if r != "" && !contains(candidateRelays, r) && relayURLAllowed(fetchCtx, r, c.allowPrivateRelays) == nil {
 			candidateRelays = append(candidateRelays, r)
 		}
 	}
 	for _, r := range c.GetActiveURLs() {
-		if !contains(candidateRelays, r) && publicRelayURL(fetchCtx, r) == nil {
+		if !contains(candidateRelays, r) && relayURLAllowed(fetchCtx, r, c.allowPrivateRelays) == nil {
 			candidateRelays = append(candidateRelays, r)
 		}
 	}
@@ -666,7 +688,7 @@ func (c *Client) FetchInnovativeShards(ctx context.Context, shardHashes []string
 		var lastErr error
 		for _, answer := range ips {
 			ip := answer.IP
-			if ip == nil || !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
+			if !c.allowPrivateRelays && (ip == nil || !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified()) {
 				return nil, errors.New("relay resolves to a non-public IP address")
 			}
 			conn, dialErr := dialer.DialContext(dialCtx, network, net.JoinHostPort(ip.String(), port))
