@@ -14,6 +14,8 @@ const (
 	DefaultChunkSize         = 1 << 20
 	DefaultMaxUploadBytes    = 19 << 20
 	DefaultUploadConcurrency = 2
+	MaxConfigurableUploadBytes = 64 << 20
+	MaxUploadConcurrency = 4
 	DefaultBlossomURLs       = "https://cdn.hzrd149.com,https://nostr.download,https://blossom.poster.place,https://cdn.sovbit.host"
 )
 
@@ -56,14 +58,14 @@ func (c Config) validate() error {
 			return fmt.Errorf("invalid Blossom URL: %q", raw)
 		}
 	}
-	if c.MaxUploadBytes <= 0 {
-		return errors.New("MAX_UPLOAD_BYTES must be positive")
+	if c.MaxUploadBytes <= 0 || c.MaxUploadBytes > MaxConfigurableUploadBytes {
+		return fmt.Errorf("MAX_UPLOAD_BYTES must be between 1 and %d bytes (64 MiB)", MaxConfigurableUploadBytes)
 	}
 	if c.ChunkSize < 64<<10 || c.ChunkSize > 8<<20 {
 		return errors.New("CHUNK_SIZE must be between 64 KiB and 8 MiB")
 	}
-	if c.UploadConcurrency <= 0 {
-		return errors.New("UPLOAD_CONCURRENCY must be positive")
+	if c.UploadConcurrency <= 0 || c.UploadConcurrency > MaxUploadConcurrency {
+		return fmt.Errorf("UPLOAD_CONCURRENCY must be between 1 and %d", MaxUploadConcurrency)
 	}
 	return nil
 }
