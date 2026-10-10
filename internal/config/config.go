@@ -67,6 +67,10 @@ func (c Config) validate() error {
 			publicURL.Host == "" || publicURL.Path != "" || publicURL.User != nil || publicURL.RawQuery != "" || publicURL.Fragment != "" {
 			return errors.New("PUBLIC_BASE_URL must be an http(s) origin without credentials, query, or fragment")
 		}
+		if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "production") &&
+			publicURL.Scheme == "http" && !strings.HasSuffix(strings.ToLower(publicURL.Hostname()), ".onion") {
+			return errors.New("production requires HTTPS except for native HTTP .onion origins")
+		}
 		if publicURL.Scheme == "https" && !c.OnionGuardSecure {
 			return errors.New("ONIONGUARD_COOKIE_SECURE must be true when PUBLIC_BASE_URL uses HTTPS")
 		}

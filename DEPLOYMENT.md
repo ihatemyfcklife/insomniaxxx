@@ -9,6 +9,14 @@ This application has no file database to back up, but it does process sensitive 
 - Keep `BLOSSOM_URLS` limited to trusted, publicly reachable Blossom servers that accept generic `application/octet-stream` blobs. The application rejects private/special-use relay destinations and does not follow redirects.
 - `MAX_UPLOAD_BYTES` must be positive and at most 67,108,864 bytes (64 MiB). `UPLOAD_CONCURRENCY` must be between 1 and 4. The application allows at most two concurrent download/preview operations.
 
+## Production mode and deployment gate
+
+Set `APP_ENV=production`. This enforces `PUBLIC_BASE_URL` and rejects non-HTTPS public origins (native HTTP `.onion` addresses are allowed). **Do not omit this variable**; it is intentionally optional for local development. Set a concrete `PUBLIC_BASE_URL`, not a value derived from client-controlled `Host` headers.
+
+In the deployment example below, pass `--env APP_ENV=production` and use an `.env` containing a canonical `PUBLIC_BASE_URL` and matching `ONIONGUARD_COOKIE_SECURE=true`.
+
+The repository CI covers unit/race tests, syntax tests, dependency scans and builds. To approve public traffic, also verify an *actual* browser over the deployment's TLS/Tor ingress: upload and recover a small and maximum-size file in both modes, check that Zero-Knowledge keys do not appear in network requests, ensure relay failures expire cleanly, confirm no request path or referrer containing a secret is logged, and measure peak RSS and temporary disk consumption under simultaneous traffic. These tests cannot be inferred from green CI.
+
 ## Network and reverse proxy
 
 Terminate public TLS at a maintained reverse proxy or ingress. Forward requests to the application over loopback or a private container network, and do not expose the application port directly to the internet. Configure the proxy with upload/body limits consistent with `MAX_UPLOAD_BYTES`, connection/rate limits, and timeouts suitable for the expected file size and network (including Tor).
@@ -28,7 +36,7 @@ docker build --build-arg VERSION="$(git rev-parse --short HEAD)" -t anonblossom:
 docker run --detach --name anonblossom \
   --read-only --tmpfs /tmp:rw,noexec,nosuid,size=1g \
   --memory=2g --cpus=2 --pids-limit=128 \
-  --restart unless-stopped --env-file .env \
+  --restart unless-stopped --env APP_ENV=production --env-file .env \
   -p 127.0.0.1:8080:8080 anonblossom:release
 ```
 
@@ -40,6 +48,10 @@ Do not put secrets directly in image layers or Docker build arguments. Keep envi
 - **WASM mode** encrypts/decrypts client-side only when the browser actually loads and runs the WASM flow. Test that mode explicitly; do not infer it from a successful homepage response.
 - The application has no database or upload index. Public Blossom operators control the persistence and availability of stored ciphertext. There is no application-level revocation or backup for objects stored on those external relays.
 - The application and relays see network and blob metadata. Do not promise anonymity or resistance to traffic analysis.
+
+## Upload receipts and relay limitations
+
+Only relays returning a well-formed Blossom descriptor with a matching SHA-256 are treated as a successful upload. An accepted receipt does not guarantee permanent storage; check actual retrieval and retention against the relays you operate or trust. Outbound relay operations have overall deadlines, and media is only previewed inline for explicitly allowlisted passive MIME types. Treat `/upload-raw` as an anonymous encrypted-blob endpoint: configure reverse-proxy rate and body limits, and do not mistake the frontend file limit for a cryptographically enforced per-user storage quota.
 
 ## Security migration after the manifest v2 fix
 
