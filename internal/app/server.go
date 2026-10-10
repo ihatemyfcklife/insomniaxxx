@@ -34,7 +34,9 @@ func NewServer(cfg config.Config) (*Server, error) {
 		TLSHandshakeTimeout:   10 * time.Second,
 		ResponseHeaderTimeout: 30 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
-		MaxIdleConns:          64,
+		MaxIdleConns:          512,
+		MaxIdleConnsPerHost:   64,
+		MaxConnsPerHost:       128,
 		IdleConnTimeout:       90 * time.Second,
 	}
 
