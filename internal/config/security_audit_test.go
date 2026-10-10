@@ -4,13 +4,13 @@ import "testing"
 
 func TestProductionModeFailClosedOnTypo(t *testing.T) {
 	cfg := Config{
-		ListenAddr: ":8080",
-		BlossomURLs: []string{"https://blossom.example", "https://replica.example"},
-		PublicBaseURL: "https://files.example",
-		MaxUploadBytes: 19 << 20,
-		ChunkSize: 1 << 20,
+		ListenAddr:        ":8080",
+		BlossomURLs:       []string{"https://blossom.example", "https://replica.example"},
+		PublicBaseURL:     "https://files.example",
+		MaxUploadBytes:    19 << 20,
+		ChunkSize:         1 << 20,
 		UploadConcurrency: 2,
-		OnionGuardSecure: true,
+		OnionGuardSecure:  true,
 	}
 	t.Setenv("APP_ENV", "prodution")
 	if err := cfg.validate(); err == nil {
@@ -25,13 +25,13 @@ func TestProductionModeFailClosedOnTypo(t *testing.T) {
 func TestProductionRejectsUnencryptedBlossomOrigins(t *testing.T) {
 	t.Setenv("APP_ENV", "production")
 	cfg := Config{
-		ListenAddr: ":8080",
-		BlossomURLs: []string{"https://blossom.example", "http://relay.example"},
-		PublicBaseURL: "https://files.example",
-		MaxUploadBytes: 19 << 20,
-		ChunkSize: 1 << 20,
+		ListenAddr:        ":8080",
+		BlossomURLs:       []string{"https://blossom.example", "http://relay.example"},
+		PublicBaseURL:     "https://files.example",
+		MaxUploadBytes:    19 << 20,
+		ChunkSize:         1 << 20,
 		UploadConcurrency: 2,
-		OnionGuardSecure: true,
+		OnionGuardSecure:  true,
 	}
 	if err := cfg.validate(); err == nil {
 		t.Fatal("unencrypted HTTP Blossom relay accepted in production")
