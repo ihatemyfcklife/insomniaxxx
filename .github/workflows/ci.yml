@@ -80,5 +80,15 @@ jobs:
           CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w -X anonblossom/internal/web.Version=$VERSION" -o dist/anonblossom ./cmd/anonblossom
           test -s dist/anonblossom
 
+      - name: Verify container Go security patch level
+        run: |
+          docker build --target build --tag anonblossom:builder .
+          builder_version="$(docker run --rm --entrypoint go anonblossom:builder version)"
+          echo "$builder_version"
+          case "$builder_version" in
+            *"go1.27.2 "*) ;;
+            *) echo "::error::Expected Go 1.27.2 patched runtime in Docker builder"; exit 1 ;;
+          esac
+
       - name: Build production container
         run: docker build --build-arg VERSION="${GITHUB_SHA}" --tag anonblossom:ci .
