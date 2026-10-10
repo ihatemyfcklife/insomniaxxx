@@ -26,6 +26,9 @@ import (
 
 var ErrNotFound = errors.New("blob not found")
 
+// Hard cap for any encrypted object fetched from untrusted Blossom relays.
+const maxRelayBlobBytes = (64 << 20) + (4 << 20)
+
 const (
 	// maxDiscoveredServers plafonne le nombre de serveurs tiers en mémoire.
 	maxDiscoveredServers = 50
@@ -105,6 +108,9 @@ func (c *Client) newSafeHTTPClient(base *http.Client) *http.Client {
 		base = http.DefaultClient
 	}
 	safeClient := *base
+	// Bound both slow response headers and slow response bodies; the caller's
+	// context can impose an even shorter request lifetime.
+	safeClient.Timeout = 2 * time.Minute
 	safeClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
@@ -514,6 +520,21 @@ func (c *Client) Fetch(ctx context.Context, hash string) (*http.Response, error)
 			continue
 		}
 		if resp.StatusCode == http.StatusOK {
+			// Verify the actual response bytes, not merely the HTTP status.
+			// A compromised relay must not prevent fallback to honest relays.
+			body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxRelayBlobBytes+1))
+			resp.Body.Close()
+			if readErr != nil || len(body) > maxRelayBlobBytes {
+				lastErr = fmt.Sprintf("%s returned an oversized or unreadable blob", publicHost(baseURL))
+				continue
+			}
+			digest := sha256.Sum256(body)
+			if !strings.EqualFold(hex.EncodeToString(digest[:]), hash) {
+				lastErr = fmt.Sprintf("%s returned a blob hash mismatch", publicHost(baseURL))
+				continue
+			}
+			resp.Body = io.NopCloser(bytes.NewReader(body))
+			resp.ContentLength = int64(len(body))
 			return resp, nil
 		}
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
@@ -691,7 +712,8 @@ func publicRelayURL(ctx context.Context, raw string) error {
 
 func relayURLAllowed(ctx context.Context, raw string, allowPrivate bool) error {
 	u, err := url.Parse(raw)
-	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Hostname() == "" || u.User != nil {
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Hostname() == "" ||
+		u.User != nil || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" {
 		return errors.New("invalid relay URL")
 	}
 	host := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
@@ -841,6 +863,22 @@ func (c *Client) FetchInnovativeShards(ctx context.Context, shardHashes []string
 				shard, err := rlncbox.DeserializeShard(body)
 				if err != nil {
 					lastErr = err
+					continue
+				}
+				if int64(len(shard.Data)) != maxShardBytes-40 {
+					lastErr = errors.New("shard size mismatch")
+					continue
+				}
+				// Reject masks referencing unavailable source columns.
+				invalidMask := false
+				for bit := k; bit < 256; bit++ {
+					if shard.Mask.TestBit(bit) {
+						invalidMask = true
+						break
+					}
+				}
+				if invalidMask {
+					lastErr = errors.New("shard mask outside manifest dimension")
 					continue
 				}
 

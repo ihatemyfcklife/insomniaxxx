@@ -24,7 +24,7 @@ jobs:
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: stable
+          go-version: '1.27.x'
           check-latest: true
           cache: true
 
@@ -43,7 +43,7 @@ jobs:
             echo "bump=skip" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if git tag --points-at HEAD | grep -qE "^v[0-9]+\.[0-9]+\.[0-9]+$"; then
+          if [[ "${{ github.ref }}" != refs/tags/* ]] && git tag --points-at HEAD | grep -qE "^v[0-9]+\.[0-9]+\.[0-9]+$"; then
             echo "HEAD already tagged, skipping."
             echo "bump=skip" >> "$GITHUB_OUTPUT"
             exit 0

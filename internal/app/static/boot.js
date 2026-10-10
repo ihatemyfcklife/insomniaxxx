@@ -85,7 +85,10 @@ if (typeof WebAssembly !== "undefined") {
 
     function renderReady(name, size, hash, key, shareURL) {
       const safeName = escapeHTML(name);
-      const qrEndpoint = "/qr?data=" + encodeURIComponent(shareURL);
+      // Never send a fragment-bearing URL (including its key) to /qr.
+      const png = typeof wasmGenerateQR === "function" ? wasmGenerateQR(shareURL) : null;
+      const qrURL = png && !png.error ? URL.createObjectURL(new Blob([png], { type: "image/png" })) : "";
+      const qrMarkup = qrURL ? `<img src="${qrURL}" alt="QR code" width="256" height="256">` : "";
       const container = document.querySelector("main.container");
       if (!container) return;
 
@@ -102,7 +105,7 @@ if (typeof WebAssembly !== "undefined") {
         <article class="success" role="status">
           <div class="share-box">
             <figure class="share-qr">
-              <img src="${qrEndpoint}" alt="QR code" width="256" height="256">
+              ${qrMarkup}
             </figure>
             <div class="share-details">
               <div class="meta-item">
@@ -299,7 +302,7 @@ if (typeof WebAssembly !== "undefined") {
           v: 1,
           size: file.size,
           enc_size: enc.ciphertext.length,
-          chunk_size: shards[0].length,
+          chunk_size: shards[0].length - 40, // serialized ABSH header is not data
           k: k,
           n: n,
           meta: {

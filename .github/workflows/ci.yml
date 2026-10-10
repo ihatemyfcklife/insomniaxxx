@@ -45,6 +45,11 @@ jobs:
             fi
           fi
 
+      - name: Check frontend JavaScript syntax
+        run: |
+          node --check internal/app/static/boot.js
+          node --check internal/app/static/view.js
+
       - name: Run tests with race detector
         run: go test -race -count=1 ./...
 

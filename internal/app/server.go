@@ -69,6 +69,8 @@ func NewServer(cfg config.Config) (*Server, error) {
 		Addr:              cfg.ListenAddr,
 		Handler:           a.routes(),
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       5 * time.Minute,
+		WriteTimeout:      10 * time.Minute,
 		IdleTimeout:       90 * time.Second,
 		MaxHeaderBytes:    32 << 10,
 	}

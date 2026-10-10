@@ -1,7 +1,9 @@
 package cryptbox
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
@@ -14,13 +16,14 @@ import (
 )
 
 const (
-	outerMagic              = "ABLOBSH1"
-	outerHeaderSize         = 16
-	formatVersion           = 1
-	manifestMagic           = "ABMAN001"
-	maxFilenameBytes        = 255
-	maxManifestBytes        = 64 << 10
-	encryptedPacketOverhead = 36 // 8B session + 12B nonce + 16B tag.
+	outerMagic               = "ABLOBSH1"
+	outerHeaderSize          = 16
+	formatVersion            = 1
+	manifestKeyFormatVersion = 2
+	manifestMagic            = "ABMAN001"
+	maxFilenameBytes         = 255
+	maxManifestBytes         = 64 << 10
+	encryptedPacketOverhead  = 36 // 8B session + 12B nonce + 16B tag.
 )
 
 var aadPrefix = []byte("anonblossom/v1:")
@@ -75,11 +78,33 @@ func MakeOuterHeader(chunkSize int) []byte {
 	return header
 }
 
+// ManifestKey isolates manifest encryption from file encryption under one share secret.
+func ManifestKey(shareKey []byte) []byte {
+	if len(shareKey) != 32 {
+		return nil
+	}
+	mac := hmac.New(sha256.New, shareKey)
+	_, _ = mac.Write([]byte("anonblossom/manifest-key/v2"))
+	return mac.Sum(nil)
+}
+
+func MakeManifestOuterHeader(chunkSize int) []byte {
+	header := MakeOuterHeader(chunkSize)
+	binary.BigEndian.PutUint32(header[12:16], manifestKeyFormatVersion)
+	return header
+}
+
+func UsesManifestKey(header []byte) bool {
+	return len(header) == outerHeaderSize && string(header[:8]) == outerMagic &&
+		binary.BigEndian.Uint32(header[12:16]) == manifestKeyFormatVersion
+}
+
 func ParseOuterHeader(header []byte) (chunkSize int, ok bool) {
 	if len(header) != outerHeaderSize || string(header[:8]) != outerMagic {
 		return 0, false
 	}
-	if binary.BigEndian.Uint32(header[12:16]) != formatVersion {
+	version := binary.BigEndian.Uint32(header[12:16])
+	if version != formatVersion && version != manifestKeyFormatVersion {
 		return 0, false
 	}
 	chunkSize = int(binary.BigEndian.Uint32(header[8:12]))
