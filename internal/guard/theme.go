@@ -53,6 +53,7 @@ func waitRoomHTML(_ *http.Request, retry time.Duration) string {
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="stylesheet" href="/static/pico.min.css">
   <style>%s</style>
+  <script defer src="/static/zk-fragment.js"></script>
 </head>
 <body>
   <main class="container">
@@ -107,6 +108,7 @@ func challengeHTML(r *http.Request, challenge *onionguard.CaptchaChallenge, cfg 
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="stylesheet" href="/static/pico.min.css">
   <style>%s</style>
+  <script defer src="/static/zk-fragment.js"></script>
 </head>
 <body>
   <main class="container">
@@ -173,6 +175,7 @@ func errorHTML(_ *http.Request, err *onionguard.AdmissionError) string {
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="stylesheet" href="/static/pico.min.css">
   <style>%s</style>
+  <script defer src="/static/zk-fragment.js"></script>
 </head>
 <body>
   <main class="container">
@@ -207,6 +210,7 @@ func successHTML(_ *http.Request, target string) string {
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="stylesheet" href="/static/pico.min.css">
   <style>%s</style>
+  <script defer src="/static/zk-fragment.js"></script>
 </head>
 <body>
   <main class="container">
