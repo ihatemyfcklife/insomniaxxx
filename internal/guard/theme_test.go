@@ -53,7 +53,7 @@ func TestGuardPagesRenderLogo(t *testing.T) {
 			if !strings.Contains(tc.html, `/static/logo.png`) {
 				t.Fatalf("%s does not contain /static/logo.png", tc.name)
 			}
-			if !strings.Contains(tc.html, `Anonymous file sharing. No accounts. No logs. Decentralized.`) {
+			if !strings.Contains(tc.html, `File sharing. No accounts. Decentralized relays.`) {
 				t.Fatalf("%s does not contain tagline", tc.name)
 			}
 			if !strings.Contains(tc.html, `<header>`) {
