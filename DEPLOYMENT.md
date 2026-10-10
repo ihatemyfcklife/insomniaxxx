@@ -9,6 +9,14 @@ This application has no file database to back up, but it does process sensitive 
 - Keep `BLOSSOM_URLS` limited to trusted, publicly reachable Blossom servers that accept generic `application/octet-stream` blobs. The application rejects private/special-use relay destinations and does not follow redirects.
 - `MAX_UPLOAD_BYTES` must be positive and at most 67,108,864 bytes (64 MiB). `UPLOAD_CONCURRENCY` must be between 1 and 4. The application allows at most two concurrent download/preview operations.
 
+## Required redundancy, privacy, and edge controls
+
+- Configure **at least two independent and approved** `BLOSSOM_URLS` origins. The server requires two successful receipts for direct blobs and two distinct storage copies per RLNC shard. If either upload target rejects a shard, no working link is issued. Published ciphertext cannot be revoked.
+- Keep trusted relay allowlists and TLS configuration audited. Client-supplied RLNC manifest relay URLs are never allowed to turn the service into a general HTTP proxy; destinations must be known configured or discovered relay origins and pass SSRF checks.
+- The decrypted plaintext cache is bounded by **two completed entries / 128 MiB** in addition to its three-minute TTL; the reverse proxy and container still need disk/CPU/memory limits and load testing.
+- Zero-Knowledge CAPTCHA pages use a static local script to retain a pending URL-fragment key in **per-tab sessionStorage for at most five minutes**. It is cleared when the successful view opens. Confirm with a new browser session that no request or monitoring log carries the key.
+- Set per-client and aggregate rate limits at the edge for `/upload`, `/upload-raw` and `/d/`; the per-blob size limit does not provide per-account quotas on this anonymous service.
+
 ## Production mode and deployment gate
 
 Set `APP_ENV=production`. This enforces `PUBLIC_BASE_URL` and rejects non-HTTPS public origins (native HTTP `.onion` addresses are allowed). **Do not omit this variable**; it is intentionally optional for local development. Set a concrete `PUBLIC_BASE_URL`, not a value derived from client-controlled `Host` headers.

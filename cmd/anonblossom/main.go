@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"anonblossom/internal/app"
 	"anonblossom/internal/config"
@@ -9,18 +10,23 @@ import (
 
 // main starts the anonblossom HTTP server.
 func main() {
+	if err := run(); err != nil {
+		log.Print(err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	server, err := app.NewServer(cfg)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	defer server.Close()
 
-	if err := server.Run(); err != nil {
-		log.Fatal(err)
-	}
+	return server.Run()
 }

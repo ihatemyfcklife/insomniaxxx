@@ -32,6 +32,12 @@ Uploads are sent to every configured public Blossom instance. Defaults target ge
 
 The encrypted file is content-addressed by SHA-256. The share URL contains the blob hash and the random 256-bit share key — in the URL path in no-JS mode, in the URL fragment in Zero-Knowledge mode (see [Frontend](#frontend)).
 
+## Production security release gate
+
+GitHub releases are published only after a successful GitHub Actions CI check for the exact `main` commit; release tag creation happens after the artifacts are built and SHA-256 checksums are verified. Manual releases are allowed only from `main` and require the same exact-commit check.
+
+The two private `BLOSSOM_URLS` entries configured for production must be genuinely independent, trusted operators. Files and RLNC shards are replicated to **at least two distinct configured relays** before displaying a share link; a successful receipt still cannot guarantee their future availability. Do not configure a single relay as production storage.
+
 ## Production deployment
 
 Review [DEPLOYMENT.md](DEPLOYMENT.md) before exposing an instance to public traffic. It covers TLS/proxy configuration, log redaction for bearer share URLs, container resource limits, and the staging release gate.
@@ -116,7 +122,7 @@ The two modes differ in who holds the key and who can read the file:
 What the design does and does not give you:
 
 - **No-JS mode is not zero-knowledge.** The application server generates the key, encrypts the upload, and decrypts the file again to render previews and stream downloads; decrypted copies sit in an ephemeral on-disk cache for a few minutes. Whoever operates (or compromises) the server can read the file and the key.
-- **Zero-Knowledge mode limits the server to ciphertext.** The server still relays the encrypted bytes and can observe their size, hashes, and request timing, but it never receives the plaintext or the key, and the key stays in the browser's URL fragment. This protects file content and the key from the server — not from anything else.
+- **Zero-Knowledge mode limits the server to ciphertext.** The server still relays the encrypted bytes and can observe their size, hashes, and request timing, but it never receives the plaintext or the key, and the key stays in the browser's URL fragment. During OnionGuard CAPTCHA navigation it may temporarily be held in per-tab sessionStorage, then removed when the link is restored. This protects file content and the key from the server — not from anything else.
 - **Neither mode hides metadata.** Your IP address (or Tor circuit), request timing, ciphertext size, and blob hash are visible to the application server and to every Blossom instance that serves the blob. This project makes no anonymity or traffic-analysis guarantee; use Tor or a VPN if that is part of your threat model.
 - **Share links are bearer secrets.** Anyone holding the complete link — key included — can decrypt the file. There are no accounts, hence no access list and no revocation: a link keeps working until the blob disappears from every configured relay, and copies already made by readers cannot be recalled.
 - **Promised:** stored bytes are encrypted with ChaCha20-Poly1305 before they reach Blossom in both modes, and no server-side database of files, keys, or users exists. **Not promised:** that the server operator cannot read files uploaded in no-JS mode, that metadata is hidden, or that any particular deployment's operator is trustworthy — review the code or run your own instance.
@@ -139,7 +145,7 @@ The OnionGuard wait room uses a standard HTML `<meta http-equiv="refresh">`, so 
 
 The upload authorization follows current Blossom BUD-11 requirements: the `24242` token contains `t=upload`, a five-minute `expiration`, the target `server`, and an `x` tag scoped to the uploaded SHA-256 blob. Blossom currently requires the `x` tag for `PUT /upload`. ([BUD-11](https://github.com/hzrd149/blossom/blob/master/buds/11.md))
 
-Share links include a server-rendered QR code. The QR is a static PNG served by the `/qr?data=...` endpoint (no inline SVG), so it still displays in Tor Browser's Safest mode where `image.svg.enabled` is false — without JavaScript or a third-party QR service.
+Share pages embed their PNG QR code directly as a `data:` image so the bearer key is never sent to `/qr?data=...`. A separate `/qr` endpoint remains available for non-secret input (no inline SVG), so it still displays in Tor Browser's Safest mode where `image.svg.enabled` is false — without JavaScript or a third-party QR service.
 
 ## Public server compatibility
 

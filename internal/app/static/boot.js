@@ -287,7 +287,14 @@ if (typeof WebAssembly !== "undefined") {
           const fd = new FormData();
           fd.append("file", new Blob([shards[i]], { type: "application/octet-stream" }), `shard_${i}.bin`);
 
-          const sResp = await fetch("/upload-raw", { method: "POST", body: fd });
+          // Transient 429/502/503 errors must not abandon an otherwise
+          // complete multi-shard upload. Retry a bounded number of times.
+          let sResp;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            sResp = await fetch("/upload-raw", { method: "POST", body: fd });
+            if (sResp.ok || ![429, 502, 503, 504].includes(sResp.status) || attempt === 2) break;
+            await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+          }
           if (!sResp.ok) {
             const detail = await sResp.text();
             alert(`Upload of shard ${i + 1} failed: ` + (detail || sResp.status));
