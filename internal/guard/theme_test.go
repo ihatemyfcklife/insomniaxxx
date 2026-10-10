@@ -82,26 +82,33 @@ func TestDumpChallengePage(t *testing.T) {
 func TestPoweredRowRender(t *testing.T) {
 	req := httptest.NewRequest("GET", "http://example.com/test", nil)
 
+	// Page wait-room (attente des secondes) : zzz.png + powered-row + lien onionguard.
+	waitRoom := waitRoomHTML(req, 5*time.Second)
+	for _, needle := range []string{"/static/zzz.png", `class="powered-row"`, `Powered by <a href="https://github.com/ihatemyfcklife/onionguard"`} {
+		if !strings.Contains(waitRoom, needle) {
+			t.Fatalf("waitRoomHTML missing %q: %s", needle, waitRoom)
+		}
+	}
+
+	// Page d'erreur : zzz.png + powered-row.
+	err := errorHTML(req, &onionguard.AdmissionError{Message: "Too many requests"})
+	for _, needle := range []string{"/static/zzz.png", `class="powered-row"`} {
+		if !strings.Contains(err, needle) {
+			t.Fatalf("errorHTML missing %q: %s", needle, err)
+		}
+	}
+
+	// Page de captcha : zzz.png NE doit pas être là.
 	challenge := challengeHTML(req, &onionguard.CaptchaChallenge{
-		ImageDataURI: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='80'><rect width='200' height='80' fill='%23181C25'/></svg>",
+		ImageDataURI: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='80'></svg>",
 	}, onionguard.CaptchaConfig{
 		Width:        200,
 		Height:       80,
 		EndpointPath: "/captcha",
 		Length:       5,
 	})
-
-	for _, needle := range []string{"/static/zzz.png", `class="powered-row"`, `Powered by <a href="https://github.com/ihatemyfcklife/onionguard"`} {
-		if !strings.Contains(challenge, needle) {
-			t.Fatalf("challengeHTML missing %q: %s", needle, challenge)
-		}
-	}
-
-	err := errorHTML(req, &onionguard.AdmissionError{Message: "Too many requests"})
-	for _, needle := range []string{"/static/zzz.png", `class="powered-row"`} {
-		if !strings.Contains(err, needle) {
-			t.Fatalf("errorHTML missing %q: %s", needle, err)
-		}
+	if strings.Contains(challenge, "/static/zzz.png") {
+		t.Fatalf("challengeHTML should not contain zzz.png: %s", challenge)
 	}
 }
 

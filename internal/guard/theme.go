@@ -60,8 +60,10 @@ func waitRoomHTML(_ *http.Request, retry time.Duration) string {
     <article>
       <h1>Checking</h1>
       <p>Please wait %d seconds...</p>
-      <small class="muted">This page refreshes automatically. Powered by <a href="https://github.com/ihatemyfcklife/onionguard" class="view-relays-link">Onionguard</a>, No JavaScript required.</small>
-    </article>
+      <div class="powered-row">
+        <small class="muted">This page refreshes automatically. Powered by <a href="https://github.com/ihatemyfcklife/onionguard" class="view-relays-link">Onionguard</a>, No JavaScript required.</small>
+        <img src="/static/zzz.png" alt="" class="upload-btn-mascot" width="1024" height="1072" draggable="false" aria-hidden="true">
+      </div>
     %s
   </main>
 </body>
@@ -127,10 +129,7 @@ func challengeHTML(r *http.Request, challenge *onionguard.CaptchaChallenge, cfg 
           <span class="btn-text">Continue</span>
         </button>
       </form>
-      <div class="powered-row">
-        <small class="muted">Powered by <a href="https://github.com/ihatemyfcklife/onionguard" class="view-relays-link">Onionguard</a>, No JavaScript required.</small>
-        <img src="/static/zzz.png" alt="" class="upload-btn-mascot" width="1024" height="1072" draggable="false" aria-hidden="true">
-      </div>
+      <small class="muted">Powered by <a href="https://github.com/ihatemyfcklife/onionguard" class="view-relays-link">Onionguard</a>, No JavaScript required.</small>
     </article>
     %s
   </main>
