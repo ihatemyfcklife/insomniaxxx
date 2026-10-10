@@ -1,26 +1,48 @@
 name: release
 
+# Never tag or publish from an unverified main push. The CI workflow's
+# completed event is the sole automatic release trigger.
 on:
-  push:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
     branches: [main]
-    tags: ["v*.*.*"]
   workflow_dispatch:
     inputs:
       bump:
         description: "Version bump (auto, major, minor, patch)"
         required: false
         default: "auto"
+        type: choice
+        options: [auto, major, minor, patch]
 
 permissions:
   contents: write
+  checks: read
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
 
 jobs:
-  tag-and-release:
+  publish:
+    if: >-
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.event == 'push') ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
+    env:
+      RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      REQUESTED_BUMP: ${{ inputs.bump || 'auto' }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
+          persist-credentials: true
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -28,104 +50,99 @@ jobs:
           check-latest: true
           cache: true
 
-      - name: Determine version bump
-        id: bump
+      - name: Verify branch, successful CI and release instructions
+        id: gate
+        shell: bash
         run: |
+          set -euo pipefail
+          case "$REQUESTED_BUMP" in auto|major|minor|patch) ;; *) echo "Invalid bump"; exit 1 ;; esac
+          git fetch origin main --tags
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          test "$(git rev-parse origin/main)" = "$RELEASE_SHA" || {
+            echo "Stale release event: main moved"; exit 1;
+          }
+          # workflow_run is emitted after a successful CI. A manual dispatch
+          # additionally verifies the completed status for the *exact* SHA.
+          gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_SHA/check-runs?per_page=100" \
+            --jq '.check_runs[] | select(.name == "test-and-build" and .conclusion == "success") | .id' \
+            | grep -qE '^[0-9]+$' || { echo "No successful CI check for SHA"; exit 1; }
           MSG="$(git log -1 --pretty=%B)"
-          echo "Commit: $MSG"
-          INPUT="${{ inputs.bump }}"
-          if [ "$INPUT" != "" ] && [ "$INPUT" != "auto" ]; then
-            echo "bump=$INPUT" >> "$GITHUB_OUTPUT"
+          if printf '%s' "$MSG" | grep -qiE '\[skip release\]|\[skip tag\]|\[no-tag\]'; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if echo "$MSG" | grep -qiE "\[skip release\]|\[skip tag\]|\[no-tag\]"; then
-            echo "Skip directive detected, skipping release."
-            echo "bump=skip" >> "$GITHUB_OUTPUT"
+          if git tag --points-at HEAD | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if [[ "${{ github.ref }}" != refs/tags/* ]] && git tag --points-at HEAD | grep -qE "^v[0-9]+\.[0-9]+\.[0-9]+$"; then
-            echo "HEAD already tagged, skipping."
-            echo "bump=skip" >> "$GITHUB_OUTPUT"
-            exit 0
+          BUMP="$REQUESTED_BUMP"
+          if [ "$BUMP" = auto ]; then
+            if printf '%s' "$MSG" | grep -qiE 'BREAKING CHANGE|feat!:'; then
+              BUMP=major
+            elif printf '%s' "$MSG" | grep -qiE '^feat(\(.+\))?:'; then
+              BUMP=minor
+            else
+              BUMP=patch
+            fi
           fi
-          if echo "$MSG" | grep -qiE "BREAKING CHANGE|feat!:"; then
-            echo "bump=major" >> "$GITHUB_OUTPUT"
-          elif echo "$MSG" | grep -qiE "^feat(\(.+\))?:"; then
-            echo "bump=minor" >> "$GITHUB_OUTPUT"
-          else
-            echo "bump=patch" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Compute next tag
-        id: tag
-        if: steps.bump.outputs.bump != 'skip'
-        run: |
-          git fetch --tags
-          # Si le push est déjà un tag v* (release manuelle), on le réutilise tel quel.
-          if echo "${{ github.ref }}" | grep -qE '^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$'; then
-            TAG="${{ github.ref_name }}"
-            echo "Tag push detected: $TAG"
-            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          LAST=$(git tag --list 'v*.*.*' --sort=-v:refname | head -n1)
-          [ -z "$LAST" ] && LAST="v0.0.0"
-          echo "Last tag: $LAST"
-          VER=${LAST#v}
-          MAJOR=$(echo "$VER" | cut -d. -f1)
-          MINOR=$(echo "$VER" | cut -d. -f2)
-          PATCH=$(echo "$VER" | cut -d. -f3)
-          case "${{ steps.bump.outputs.bump }}" in
+          LAST="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | grep -m1 -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true)"
+          [ -n "$LAST" ] || LAST=v0.0.0
+          IFS=. read -r MAJOR MINOR PATCH <<< "${LAST#v}"
+          case "$BUMP" in
             major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0 ;;
             minor) MINOR=$((MINOR+1)); PATCH=0 ;;
-            *) PATCH=$((PATCH+1)) ;;
+            patch) PATCH=$((PATCH+1)) ;;
           esac
-          NEXT="v${MAJOR}.${MINOR}.${PATCH}"
-          echo "Next tag: $NEXT"
-          echo "tag=$NEXT" >> "$GITHUB_OUTPUT"
-          echo "major=$MAJOR" >> "$GITHUB_OUTPUT"
+          TAG="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Create and push tag
-        if: steps.bump.outputs.bump != 'skip'
+      - name: Build and verify release artifacts before creating tag
+        if: steps.gate.outputs.skip != 'true'
+        shell: bash
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          TAG="${{ steps.tag.outputs.tag }}"
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists, skipping."
-          else
-            git tag -a "$TAG" -m "Release $TAG"
-            git push origin "$TAG"
-          fi
-
-      - name: Build static assets (pico + wasm)
-        if: steps.bump.outputs.bump != 'skip'
-        run: |
-          mkdir -p internal/app/static
-          [ -f internal/app/static/pico.min.css ] || curl -sSL -o internal/app/static/pico.min.css https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.fuchsia.min.css
-          cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" internal/app/static/wasm_exec.js 2>/dev/null || \
-            cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" internal/app/static/wasm_exec.js
+          set -euo pipefail
+          test -s internal/app/static/pico.min.css
+          go mod download
+          go mod verify
+          cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" internal/app/static/wasm_exec.js
           GOOS=js GOARCH=wasm go build -trimpath -ldflags='-s -w' -o internal/app/static/app.wasm ./cmd/wasm
-
-      - name: Build release binaries
-        if: steps.bump.outputs.bump != 'skip'
-        run: |
+          TAG="${{ steps.gate.outputs.tag }}"
           mkdir -p dist
-          TAG="${{ steps.tag.outputs.tag }}"
           LDFLAGS="-s -w -X anonblossom/internal/web.Version=$TAG"
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="$LDFLAGS" -o dist/anonblossom-linux-amd64 ./cmd/anonblossom
           CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="$LDFLAGS" -o dist/anonblossom-linux-arm64 ./cmd/anonblossom
           cp internal/app/static/app.wasm dist/app.wasm
           cp internal/app/static/wasm_exec.js dist/wasm_exec.js
           (cd dist && sha256sum * > SHA256SUMS.txt)
-          ls -la dist/
+          test -s dist/anonblossom-linux-amd64
+          test -s dist/anonblossom-linux-arm64
+          test -s dist/app.wasm
+          (cd dist && sha256sum -c SHA256SUMS.txt)
+
+      - name: Tag validated release
+        if: steps.gate.outputs.skip != 'true'
+        shell: bash
+        env:
+          TAG: ${{ steps.gate.outputs.tag }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Fail on concurrent tag collisions, never repoint existing tags.
+          if git rev-parse "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag already exists; refusing to replace it."
+            exit 1
+          fi
+          git tag -a "$TAG" -m "Release $TAG" "$RELEASE_SHA"
+          git push origin "refs/tags/$TAG"
 
       - name: Publish GitHub Release
-        if: steps.bump.outputs.bump != 'skip'
+        if: steps.gate.outputs.skip != 'true'
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
-          tag_name: ${{ steps.tag.outputs.tag }}
-          name: ${{ steps.tag.outputs.tag }}
+          tag_name: ${{ steps.gate.outputs.tag }}
+          name: ${{ steps.gate.outputs.tag }}
           generate_release_notes: true
           files: |
             dist/anonblossom-linux-amd64
