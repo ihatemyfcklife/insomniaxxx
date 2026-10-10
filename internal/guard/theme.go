@@ -62,8 +62,8 @@ func waitRoomHTML(_ *http.Request, retry time.Duration) string {
       <p>Please wait %d seconds...</p>
       <small class="muted">This page refreshes automatically. Powered by <a href="https://github.com/ihatemyfcklife/onionguard" class="view-relays-link">Onionguard</a>, No JavaScript required.</small>
     </article>
+    %s
   </main>
-  %s
 </body>
 </html>`, seconds, pageTitle, web.PicoThemeCSS, web.LogoHTML(), seconds, web.FooterHTML())
 }
