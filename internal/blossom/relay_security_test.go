@@ -15,6 +15,9 @@ func TestPublicRelayURLRejectsUnsafeDestinations(t *testing.T) {
 		"https://192.0.2.1",
 		"https://198.18.0.1",
 		"https://[2001:db8::1]",
+		// These prefixes encode 10.0.0.1 despite appearing to be global IPv6 addresses.
+		"http://[64:ff9b::a00:1]",
+		"http://[2002:0a00:0001::]",
 		"http://[::1]",
 		"http://localhost",
 		"http://service.local",

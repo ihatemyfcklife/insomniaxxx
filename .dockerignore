@@ -1,3 +1,15 @@
 .git
+.gitignore
 *.md
 /tmp
+
+# Keep credentials and local environment overrides out of the build context.
+.env
+.env.*
+!.env.example
+
+# Local build artifacts and developer output.
+bin/
+dist/
+coverage.out
+*.log
