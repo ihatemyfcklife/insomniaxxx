@@ -508,7 +508,7 @@ func (c *Client) Fetch(ctx context.Context, hash string) (*http.Response, error)
 		}
 		req.Header.Set("User-Agent", c.UserAgent)
 		req.Header.Set("Accept", "application/octet-stream")
-		resp, err := c.HTTP.Do(req)
+		resp, err := c.safeHTTP.Do(req)
 		if err != nil {
 			lastErr = err.Error()
 			continue
