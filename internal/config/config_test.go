@@ -31,6 +31,18 @@ func TestConfigValidation(t *testing.T) {
 	if err := cfg.validate(); err == nil {
 		t.Fatal("invalid chunk size accepted")
 	}
+
+	cfg.ChunkSize = 1 << 20
+	cfg.MaxUploadBytes = MaxConfigurableUploadBytes + 1
+	if err := cfg.validate(); err == nil {
+		t.Fatal("upload size above the configured safety ceiling accepted")
+	}
+
+	cfg.MaxUploadBytes = 1 << 20
+	cfg.UploadConcurrency = MaxUploadConcurrency + 1
+	if err := cfg.validate(); err == nil {
+		t.Fatal("excessive upload concurrency accepted")
+	}
 }
 
 func TestDefaultBlossomURLsAreGenericServers(t *testing.T) {
