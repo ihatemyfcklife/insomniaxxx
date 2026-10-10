@@ -644,6 +644,41 @@ func (c *Client) FetchInnovativeShards(ctx context.Context, shardHashes []string
 	safeClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
+	// Validate the IP used by the actual connection too, preventing DNS rebinding
+	// between the URL pre-check and the HTTP request. Never route these requests
+	// through an environment-configured proxy.
+	var transport *http.Transport
+	if existing, ok := baseClient.Transport.(*http.Transport); ok && existing != nil {
+		transport = existing.Clone()
+	} else {
+		transport = http.DefaultTransport.(*http.Transport).Clone()
+	}
+	transport.Proxy = nil
+	dialer := &net.Dialer{Timeout: 5 * time.Second, KeepAlive: 30 * time.Second}
+	transport.DialContext = func(dialCtx context.Context, network, address string) (net.Conn, error) {
+		host, port, splitErr := net.SplitHostPort(address)
+		if splitErr != nil {
+			return nil, splitErr
+		}
+		ips, lookupErr := net.DefaultResolver.LookupIPAddr(dialCtx, host)
+		if lookupErr != nil || len(ips) == 0 {
+			return nil, errors.New("relay hostname did not resolve")
+		}
+		var lastErr error
+		for _, answer := range ips {
+			ip := answer.IP
+			if ip == nil || !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
+				return nil, errors.New("relay resolves to a non-public IP address")
+			}
+			conn, dialErr := dialer.DialContext(dialCtx, network, net.JoinHostPort(ip.String(), port))
+			if dialErr == nil {
+				return conn, nil
+			}
+			lastErr = dialErr
+		}
+		return nil, lastErr
+	}
+	safeClient.Transport = transport
 
 	type shardResult struct {
 		shard badrlnc.Shard
