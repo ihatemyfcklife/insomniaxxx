@@ -1,0 +1,137 @@
+name: preview-release
+
+# Publish explicitly requested preview binaries without claiming staging/load approval.
+# Stable releases remain controlled by release.yml and its staging attestation.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+  checks: read
+
+concurrency:
+  group: preview-release-main
+  cancel-in-progress: false
+
+jobs:
+  publish-preview:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout validated main commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.x'
+          check-latest: true
+          cache: true
+
+      - name: Verify exact CI and explicit preview intent
+        id: gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --tags
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          test "$(git rev-parse origin/main)" = "$RELEASE_SHA" || {
+            echo "Main has moved; refusing a stale preview."
+            exit 1
+          }
+          gh api "repos/$GITHUB_REPOSITORY/commits/$RELEASE_SHA/check-runs?per_page=100" \
+            --jq '.check_runs[] | select(.name == "test-and-build" and .conclusion == "success") | .id' \
+            | grep -qE '^[0-9]+$' || {
+              echo "No successful test-and-build check for exact SHA."
+              exit 1
+            }
+          MSG="$(git log -1 --pretty=%B)"
+          if ! printf '%s' "$MSG" | grep -Fqi '[publish preview]' ||
+             ! printf '%s' "$MSG" | grep -Fqi '[skip release]'; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          LAST="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | grep -m1 -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true)"
+          [ -n "$LAST" ] || LAST=v0.0.0
+          IFS=. read -r MAJOR MINOR PATCH <<< "${LAST#v}"
+          PATCH=$((PATCH + 1))
+          RC=1
+          TAG="v${MAJOR}.${MINOR}.${PATCH}-rc.${RC}"
+          while git show-ref --verify --quiet "refs/tags/$TAG"; do
+            RC=$((RC + 1))
+            TAG="v${MAJOR}.${MINOR}.${PATCH}-rc.${RC}"
+          done
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Build and verify preview artifacts
+        if: steps.gate.outputs.skip != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s internal/app/static/pico.min.css
+          go mod download
+          go mod verify
+          cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" internal/app/static/wasm_exec.js
+          GOOS=js GOARCH=wasm go build -trimpath -ldflags='-s -w' -o internal/app/static/app.wasm ./cmd/wasm
+          TAG="${{ steps.gate.outputs.tag }}"
+          mkdir -p dist
+          LDFLAGS="-s -w -X anonblossom/internal/web.Version=$TAG"
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="$LDFLAGS" -o dist/anonblossom-linux-amd64 ./cmd/anonblossom
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="$LDFLAGS" -o dist/anonblossom-linux-arm64 ./cmd/anonblossom
+          cp internal/app/static/app.wasm dist/app.wasm
+          cp internal/app/static/wasm_exec.js dist/wasm_exec.js
+          (cd dist && sha256sum * > SHA256SUMS.txt)
+          (cd dist && sha256sum -c SHA256SUMS.txt)
+          test -s dist/anonblossom-linux-amd64
+          test -s dist/anonblossom-linux-arm64
+          test -s dist/app.wasm
+
+      - name: Tag validated preview commit
+        if: steps.gate.outputs.skip != 'true'
+        shell: bash
+        env:
+          TAG: ${{ steps.gate.outputs.tag }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          ! git show-ref --verify --quiet "refs/tags/$TAG"
+          git tag -a "$TAG" -m "Preview $TAG (load/staging not verified)" "$RELEASE_SHA"
+          git push origin "refs/tags/$TAG"
+
+      - name: Publish unverified GitHub pre-release
+        if: steps.gate.outputs.skip != 'true'
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: ${{ steps.gate.outputs.tag }}
+          name: ${{ steps.gate.outputs.tag }} - Preview (unverified staging)
+          prerelease: true
+          make_latest: false
+          generate_release_notes: true
+          body: |
+            Preview build of the latest main branch, requested before staging/load verification.
+            CI, static checks, WASM/Linux/Docker builds were successful for this source SHA.
+            **NOT approved or tested for 1,000 simultaneous live file transfers.**
+            Use staging or controlled beta traffic until real mixed-transfer, privacy and
+            relay-failure tests are completed. This preview is not a production safety attestation.
+          files: |
+            dist/anonblossom-linux-amd64
+            dist/anonblossom-linux-arm64
+            dist/app.wasm
+            dist/wasm_exec.js
+            dist/SHA256SUMS.txt
