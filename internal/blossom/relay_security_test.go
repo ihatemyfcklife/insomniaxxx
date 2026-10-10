@@ -15,6 +15,8 @@ func TestPublicRelayURLRejectsUnsafeDestinations(t *testing.T) {
 		"https://192.0.2.1",
 		"https://198.18.0.1",
 		"https://[2001:db8::1]",
+		"http://[64:ff9b::a00:1]", // NAT64 encoding of 10.0.0.1
+		"http://[2002:0a00:0001::]", // 6to4 encoding of 10.0.0.1
 		"http://[::1]",
 		"http://localhost",
 		"http://service.local",
