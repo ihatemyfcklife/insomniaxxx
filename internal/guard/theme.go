@@ -176,6 +176,7 @@ func errorHTML(_ *http.Request, err *onionguard.AdmissionError) string {
 </head>
 <body>
   <main class="container">
+    %s
     <article role="alert">
       <h1>Unavailable</h1>
       <p>%s</p>
