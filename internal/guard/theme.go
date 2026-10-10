@@ -60,10 +60,7 @@ func waitRoomHTML(_ *http.Request, retry time.Duration) string {
     <article>
       <h1>Checking</h1>
       <p>Please wait %d seconds...</p>
-      <div class="powered-row">
-        <small class="muted">This page refreshes automatically. Powered by <a href="https://github.com/ihatemyfcklife/onionguard" class="view-relays-link">Onionguard</a>, No JavaScript required.</small>
-        <img src="/static/zzz.png" alt="" class="upload-btn-mascot" width="1024" height="1072" draggable="false" aria-hidden="true">
-      </div>
+      <small class="muted">This page refreshes automatically. Powered by <a href="https://github.com/ihatemyfcklife/onionguard" class="view-relays-link">Onionguard</a>, No JavaScript required.</small>
     %s
   </main>
 </body>
@@ -182,10 +179,7 @@ func errorHTML(_ *http.Request, err *onionguard.AdmissionError) string {
     <article role="alert">
       <h1>Unavailable</h1>
       <p>%s</p>
-      <div class="powered-row">
-        <small class="muted">Powered by <a href="https://github.com/ihatemyfcklife/onionguard" class="view-relays-link">Onionguard</a>, No JavaScript required.</small>
-        <img src="/static/zzz.png" alt="" class="upload-btn-mascot" width="1024" height="1072" draggable="false" aria-hidden="true">
-      </div>
+      <small class="muted">Powered by <a href="https://github.com/ihatemyfcklife/onionguard" class="view-relays-link">Onionguard</a>, No JavaScript required.</small>
       <a href="/" class="view-relays-link">Back</a>
     </article>
     %s
