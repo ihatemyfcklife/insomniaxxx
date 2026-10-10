@@ -99,6 +99,7 @@ func setupTestServer(t *testing.T) (*Server, map[string]map[string][]byte, func(
 		storage:   blossomClient,
 		pages:     pages,
 		uploads:   make(chan struct{}, 2),
+		downloads: make(chan struct{}, 2),
 		admission: adm,
 		cache:     newDownloadCache(10 * time.Minute),
 	}
