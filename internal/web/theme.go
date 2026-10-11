@@ -873,6 +873,12 @@ const (
 			}
 		}
 
+		/* Highlight the configured upload ceiling using the site's accent color. */
+		.upload-limit-value {
+			color: var(--pico-primary);
+			font-weight: 600;
+		}
+
 		/* Notes & Secondary notices (left-aligned) */
 		.upload-note,
 		.share-note,
