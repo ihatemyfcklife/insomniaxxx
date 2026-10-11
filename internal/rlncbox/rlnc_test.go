@@ -106,8 +106,14 @@ func TestRLNC_IsInnovative(t *testing.T) {
 
 func TestRLNC_CalculateKN(t *testing.T) {
 	k, n := CalculateKN(1024)
-	if k != 1 || n != 1 {
-		t.Errorf("expected 1, 1 for small file, got %d, %d", k, n)
+	if k != 4 || n != 6 {
+		t.Errorf("expected 4, 6 for small file, got %d, %d", k, n)
+	}
+	for _, size := range []int64{0, 1, 64, 1 << 20, Threshold} {
+		k, n := CalculateKN(size)
+		if k != 4 || n != 6 {
+			t.Errorf("size %d: expected minimum 4+2 shards, got %d, %d", size, k, n)
+		}
 	}
 
 	k, n = CalculateKN(3 * 1024 * 1024)

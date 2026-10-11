@@ -107,8 +107,8 @@ func setupTestServer(t *testing.T) (*Server, map[string]map[string][]byte, func(
 	return server, storageMap, cleanup
 }
 
-func TestUploadDownloadSmallFileMonolithic(t *testing.T) {
-	server, _, cleanup := setupTestServer(t)
+func TestUploadDownloadSmallFileDistributed(t *testing.T) {
+	server, storageMap, cleanup := setupTestServer(t)
 	defer cleanup()
 
 	// Petit fichier (100 Ko <= 2 Mo)
@@ -132,10 +132,50 @@ func TestUploadDownloadSmallFileMonolithic(t *testing.T) {
 		t.Fatalf("upload failed with code %d: %s", rec.Code, rec.Body.String())
 	}
 
-	// L'écran "Ready" contient le lien de partage
+	// New small-file uploads must store only RLNC shards and an encrypted
+	// manifest, never one full monolithic ciphertext blob.
 	readyHTML := rec.Body.String()
 	if !bytes.Contains([]byte(readyHTML), []byte("small.txt")) {
 		t.Fatalf("expected small.txt in response")
+	}
+	seenShards := make(map[string]bool)
+	relayShards := make(map[string]int)
+	manifestCount := 0
+	for relay, stored := range storageMap {
+		for hash, blob := range stored {
+			if bytes.HasPrefix(blob, []byte("ABSH")) {
+				seenShards[hash] = true
+				relayShards[relay]++
+			} else {
+				manifestCount++
+			}
+		}
+	}
+	if len(seenShards) != 6 {
+		t.Fatalf("small file stored %d distinct RLNC shards; expected 6", len(seenShards))
+	}
+	if len(relayShards) < 3 {
+		t.Fatalf("small shards were not dispersed across all 3 configured hosts: %v", relayShards)
+	}
+	if manifestCount < 2 {
+		t.Fatalf("small file encrypted manifest not redundantly replicated: %d", manifestCount)
+	}
+	pathPrefix := "/d/"
+	start := bytes.Index([]byte(readyHTML), []byte(pathPrefix))
+	if start == -1 {
+		t.Fatal("missing small-file share link")
+	}
+	prefix := readyHTML[start:]
+	end := bytes.IndexAny([]byte(prefix), "\" \n<")
+	if end < 0 {
+		t.Fatal("malformed share link")
+	}
+	sharePath := prefix[:end]
+	dlReq := httptest.NewRequest(http.MethodGet, sharePath+"?download=1", nil)
+	dlRec := httptest.NewRecorder()
+	server.handleDownload(dlRec, dlReq)
+	if dlRec.Code != http.StatusOK || !bytes.Equal(dlRec.Body.Bytes(), smallData) {
+		t.Fatalf("small distributed file did not round-trip: status %d, length %d", dlRec.Code, dlRec.Body.Len())
 	}
 }
 
