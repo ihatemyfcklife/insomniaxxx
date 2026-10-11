@@ -114,6 +114,58 @@ func TestPreviewMascotAnchoredAbovePreview(t *testing.T) {
 	}
 }
 
+func TestZKNoScriptNoticeHidesLoadingAnimationAndText(t *testing.T) {
+	pages, err := NewPages()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	if err := pages.View(rec, PageData{Title: "insomniaXXX", ZK: true}); err != nil {
+		t.Fatal(err)
+	}
+	body := rec.Body.String()
+	headEnd := strings.Index(body, "</head>")
+	if headEnd < 0 {
+		t.Fatal("view HTML is missing a head")
+	}
+	// Head-level noscript styles are applied only when scripting is disabled.
+	head := body[:headEnd]
+	for _, required := range []string{
+		"<noscript>",
+		"#zkLoader .zk-loading-card,",
+		"#zkLoader .zk-loading-content { display: none !important; }",
+	} {
+		if !strings.Contains(head, required) {
+			t.Fatalf("no-JavaScript view must hide the loader animation and status: %q", required)
+		}
+	}
+	for _, required := range []string{
+		"This file was shared in Zero-Knowledge mode",
+		"Opening it requires JavaScript / WebAssembly to be enabled.",
+		`id="zkSpinner"`,
+		`id="zkStatusTitle"`,
+		`id="zkStatus"`,
+		`<script src="/static/view.js"`,
+	} {
+		if !strings.Contains(body, required) {
+			t.Fatalf("view must keep the explanatory notice and normal WASM loading behavior: %q", required)
+		}
+	}
+	// The noscript override must not affect the Tor/server-side viewers.
+	for _, data := range []PageData{
+		{Title: "insomniaXXX"},
+		{Title: "insomniaXXX", ZK: true, ServerMode: true},
+	} {
+		w := httptest.NewRecorder()
+		if err := pages.View(w, data); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(w.Body.String(), "#zkLoader .zk-loading-card,") {
+			t.Fatal("no-JS ZK loader override leaked into another viewer")
+		}
+	}
+}
+
 func TestZKLoadingGIFCannotBeSelectedOrDragged(t *testing.T) {
 	pages, err := NewPages()
 	if err != nil {
