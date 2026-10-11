@@ -219,7 +219,7 @@ func successHTML(_ *http.Request, target string) string {
       <h1>Passed</h1>
       <p>Verification passed. Redirecting...</p>
       <small class="muted">Powered by <a href="https://github.com/ihatemyfcklife/onionguard" class="view-relays-link">Onionguard</a>, No JavaScript required.</small>
-      <p class="guard-success-action"><a href="%s" role="button">Continue</a></p>
+      <p class="guard-success-action"><a href="%s" class="view-relays-link">Continue</a></p>
     </article>
     %s
   </main>
