@@ -399,6 +399,45 @@ const (
 			opacity: 1 !important;
 		}
 
+		/* Decorative mascot floats above the top-right corner of the preview,
+		   like the mascot above the upload button on the home page. */
+		.preview-frame {
+			position: relative;
+		}
+
+		.preview-mascot {
+			position: absolute;
+			bottom: 100%;
+			right: 0;
+			height: 205px;
+			width: auto;
+			max-width: 40%;
+			object-fit: contain;
+			object-position: right bottom;
+			opacity: 0.5;
+			pointer-events: none;
+			user-select: none;
+			-webkit-user-select: none;
+			-webkit-user-drag: none;
+			-webkit-touch-callout: none;
+		}
+
+		@media (max-width: 768px) {
+			.preview-mascot {
+				height: 130px;
+				opacity: 0.2;
+				max-width: 50%;
+			}
+		}
+
+		@media (max-width: 480px) {
+			.preview-mascot {
+				height: 100px;
+				opacity: 0.18;
+				max-width: 45%;
+			}
+		}
+
 		/* Styles de la zone de prévisualisation */
 		.preview-box {
 			display: flex;
@@ -436,6 +475,11 @@ const (
 			max-width: 100%;
 			margin: 1rem auto 0;
 			object-fit: contain;
+			pointer-events: none;
+			user-select: none;
+			-webkit-user-select: none;
+			-webkit-user-drag: none;
+			-webkit-touch-callout: none;
 		}
 
 		/* Animation et état de chargement Zero-Knowledge / RLNC */
