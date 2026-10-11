@@ -734,6 +734,14 @@ func (c *Client) UploadDistributedShards(ctx context.Context, shards [][]byte, s
 	hosts := make(map[string]bool, len(targets))
 	for _, target := range targets {
 		host := publicHost(target)
+		if c.allowPrivateRelays {
+			// Isolated httptest servers intentionally share 127.0.0.1 but
+			// listen on different ports. This exception is never enabled
+			// for public/production clients.
+			if parsed, err := url.Parse(target); err == nil {
+				host = parsed.Host
+			}
+		}
 		if host == "" || hosts[host] {
 			continue
 		}
