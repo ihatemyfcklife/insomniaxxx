@@ -41,10 +41,7 @@ async function createPage({size, maxSize, wasmFailure=false, fileSelected=true, 
     '.btn-loading': loading,
     'img.upload-btn-mascot': mascot
   })[selector] || null;
-  const ids = {uploadForm:form, file:input, wasmStatus:mockElement(),
-    architectureImg:mockElement(), architectureDetailsNoJS:mockElement(),
-    architectureDetailsWasm:mockElement(), modeToggle:mockElement(),
-    btnModeNoJS:mockElement(), btnModeWasm:mockElement(), submitBtn:submit};
+  const ids = {uploadForm:form, file:input, wasmStatus:mockElement(), submitBtn:submit};
   const sandbox = {
     console, Uint8Array, Blob, FormData, Number, setTimeout,
     document: {
@@ -117,13 +114,6 @@ async function createPage({size, maxSize, wasmFailure=false, fileSelected=true, 
   assert(oversized.alerts.some(x=>x.includes('limit')));
   assert(!oversized.calls.some(x=>x.url==='/upload-raw'));
 
-  const classic=await createPage({size:42,maxSize:19*1024*1024});
-  classic.ids.btnModeNoJS.listeners.click();
-  prevented=0;
-  await classic.form.onsubmit({preventDefault(){prevented++;}});
-  assert.equal(prevented,1,'clearnet must never enable plaintext POST');
-  assert(!classic.calls.some(x=>x.url==='/upload-raw'));
-
   const zk=await createPage({size:42,maxSize:19*1024*1024});
   prevented=0;
   const upload = zk.form.onsubmit({preventDefault(){prevented++;}});
@@ -136,5 +126,5 @@ async function createPage({size, maxSize, wasmFailure=false, fileSelected=true, 
     'a tiny file must upload six RLNC shards and one encrypted manifest');
   assert(!zk.calls.some(x=>x.url.includes('/qr?')||x.url.includes('secret-fragment')),
     'share keys must not appear in network URLs');
-  console.log('Frontend upload-limit, mode-switch, and zero-knowledge QR network checks passed');
+  console.log('Frontend upload-limit, loading-state, and zero-knowledge QR network checks passed');
 })().catch(err=>{console.error(err);process.exitCode=1;});
