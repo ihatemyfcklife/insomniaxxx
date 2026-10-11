@@ -26,54 +26,6 @@ if (typeof WebAssembly !== "undefined") {
       status.textContent = "Zero-Knowledge mode active (local encryption & RLNC)";
     }
 
-    // Architecture Mode Switcher (auto-switches to Wasm and exposes interactive switcher)
-    const archImg = document.getElementById("architectureImg");
-    const nojsDetails = document.getElementById("architectureDetailsNoJS");
-    const wasmDetails = document.getElementById("architectureDetailsWasm");
-    const modeToggle = document.getElementById("modeToggle");
-    const btnNoJS = document.getElementById("btnModeNoJS");
-    const btnWasm = document.getElementById("btnModeWasm");
-
-    // Selecting No-JS switches to native HTML POST; it must not continue
-    // encrypting locally after the user explicitly changes modes.
-    let activeMode = "wasm";
-    function setArchMode(mode) {
-      if (mode !== "wasm") return;
-      activeMode = mode;
-      if (mode === "wasm") {
-        if (archImg) archImg.src = "/static/architecture-wasm.png";
-        if (nojsDetails) nojsDetails.style.display = "none";
-        if (wasmDetails) wasmDetails.style.display = "";
-        if (btnNoJS) {
-          btnNoJS.classList.add("outline");
-          btnNoJS.setAttribute("aria-pressed", "false");
-        }
-        if (btnWasm) {
-          btnWasm.classList.remove("outline");
-          btnWasm.setAttribute("aria-pressed", "true");
-        }
-      } else {
-        if (archImg) archImg.src = "/static/architecture-nojs.png";
-        if (nojsDetails) nojsDetails.style.display = "";
-        if (wasmDetails) wasmDetails.style.display = "none";
-        if (btnNoJS) {
-          btnNoJS.classList.remove("outline");
-          btnNoJS.setAttribute("aria-pressed", "true");
-        }
-        if (btnWasm) {
-          btnWasm.classList.add("outline");
-          btnWasm.setAttribute("aria-pressed", "false");
-        }
-      }
-    }
-
-    if (modeToggle && btnNoJS && btnWasm) {
-      modeToggle.style.display = "none";
-      btnNoJS.addEventListener("click", () => setArchMode("nojs"));
-      btnWasm.addEventListener("click", () => setArchMode("wasm"));
-      setArchMode("wasm");
-    }
-
     function escapeHTML(value) {
       return String(value).replace(/[&<>"']/g, (c) =>
         ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]
