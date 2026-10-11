@@ -218,7 +218,7 @@
     return { hash, direct: false };
   }
 
-  async function uploadEncrypted(data, hash) {
+  async function uploadEncrypted(data, hash, { shardIndex = null } = {}) {
     const dataSize = data instanceof Blob ? data.size : data && data.byteLength;
     if (!validHash(hash) || !Number.isSafeInteger(dataSize) ||
         dataSize < 16 || dataSize > MAX_BLOB ||
@@ -254,14 +254,16 @@
     } catch (_) { /* failed authorization or offline app: proxy fallback */ }
 
     if (targets.length >= 2) {
-      // Avoid known CORS-incompatible/unavailable relays while we still have
-      // two independent targets; failures expire after a bounded cooldown.
+      // A shard is stored on two independent hosts, not sent to every relay.
+      // Rotate the pair across A+B, B+C, C+A for three hosts. On errors,
+      // use the remaining configured host before the original app proxy.
       const available = targets.filter(target =>
         (relayHealth.get(target.url)?.cooldownUntil || 0) <= Date.now());
       if (available.length >= 2) targets = available;
-      // At most three relay requests per ciphertext blob, without involving
-      // insomniaXXX in the actual upload body. Never pass cookies/keys.
-      const results = await Promise.all(targets.map(async target => {
+      const offset = Number.isSafeInteger(shardIndex) && shardIndex >= 0
+        ? shardIndex % targets.length : 0;
+      const ordered = targets.map((_, i) => targets[(offset + i) % targets.length]);
+      const uploadOneTarget = async target => {
         try {
           const receiptBytes = await timedFetch(target.url + "/upload", {
             method: "PUT", mode: "cors", credentials: "omit",
@@ -286,8 +288,14 @@
           observeRelay(target.url, false);
           return false;
         }
-      }));
-      if (results.filter(Boolean).length >= 2) return { hash, direct: true };
+      };
+      const firstPair = await Promise.all(ordered.slice(0, 2).map(uploadOneTarget));
+      let successes = firstPair.filter(Boolean).length;
+      for (const spare of ordered.slice(2)) {
+        if (successes >= 2) break;
+        if (await uploadOneTarget(spare)) successes++;
+      }
+      if (successes >= 2) return { hash, direct: true };
     }
     // A partial one-relay success is not enough: the proxy must still obtain
     // two separate valid receipts before a share link may be published.
