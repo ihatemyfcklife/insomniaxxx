@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html"
 	"image/color"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -40,7 +41,7 @@ func Configure(maxBodyBytes int64, cookieSecure bool) onionguard.Config {
 }
 
 func waitRoomHTML(r *http.Request, retry time.Duration) string {
-	seconds := max(1, int(retry.Seconds()))
+	seconds := max(1, int(math.Ceil(retry.Seconds())))
 	// Manual retry is required if the browser blocks automatic page refreshes.
 	// Preserve the original internal path and query without ever reflecting an
 	// attacker-controlled absolute URL into a navigation.
