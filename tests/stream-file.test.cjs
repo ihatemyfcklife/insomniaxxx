@@ -45,7 +45,7 @@ const sandbox = {
     return {chunks: [new Uint8Array([43])], hash};
   },
   wasmEncryptStreamAbort(id) {assert.equal(id, 5); streamAborted = true;},
-  wasmSHA256(data) {return String(data[0]);}
+  wasmSHA256(data) {return Number(data[0]).toString(16).padStart(64, "0");}
 };
 Object.assign(window, {
   wasmEncryptStreamStart: sandbox.wasmEncryptStreamStart,
@@ -80,7 +80,7 @@ vm.runInNewContext(src, sandbox);
     return {hash};
   }, null, 3);
   assert.equal(maxActive, 3);
-  assert.deepEqual(Array.from(resolved), shards.map(s => String(s[0])),
+  assert.deepEqual(Array.from(resolved), shards.map(s => Number(s[0]).toString(16).padStart(64, "0")),
     'manifest hashes must follow original shard order, not completion order');
 
   let uploaded = 0;
