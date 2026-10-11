@@ -7,6 +7,15 @@
   <meta name="referrer" content="no-referrer">
   <title>{{.FileName}} · {{.Title}}</title>
   {{template "head" .}}
+  {{if and .ZK (not .ServerMode)}}
+  <noscript>
+    <style>
+      /* When scripting is disabled, show only the explanatory message. */
+      #zkLoader .zk-loading-card,
+      #zkLoader .zk-loading-content { display: none !important; }
+    </style>
+  </noscript>
+  {{end}}
 </head>
 <body>
   <main class="container">
