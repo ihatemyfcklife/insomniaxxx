@@ -12,9 +12,14 @@ const sha = data => createHash('sha256').update(data).digest('hex');
 
 function harness({ badFirstDownload = false, failedUpload = false, corsFailure = false, proxyOnly = false, view = false } = {}) {
   const calls = [];
+  let incremental = null;
   const window = {
     location: { origin: 'https://files.example', pathname: view ? '/d/' + hash : '/' },
     wasmSHA256: sha,
+    wasmSHA256Begin() { incremental = createHash('sha256'); return 55; },
+    wasmSHA256Push(id, chunk) {assert.equal(id,55); incremental.update(chunk); return true; },
+    wasmSHA256End(id) {assert.equal(id,55); return incremental.digest('hex');},
+    wasmSHA256Abort(id) {assert.equal(id,55); incremental = null;},
     sessionStorage: { getItem(key) { return key === 'insomnia:proxy-only' && proxyOnly ? '1' : null; } }
   };
   const response = (data, status = 200) => new Response(data, {status});
@@ -40,7 +45,9 @@ function harness({ badFirstDownload = false, failedUpload = false, corsFailure =
       assert.equal(options.credentials, 'omit');
       assert.equal(options.headers['X-SHA-256'], hash);
       assert.equal(options.headers.Authorization, auth);
-      assert.deepEqual(Array.from(options.body), Array.from(bytes));
+      const payload = options.body instanceof Blob
+        ? new Uint8Array(await options.body.arrayBuffer()) : options.body;
+      assert.deepEqual(Array.from(payload), Array.from(bytes));
       if (corsFailure) throw new TypeError('CORS');
       if (failedUpload && url.startsWith(relays[0])) return Response.json({sha256:'f'.repeat(64)});
       return Response.json({sha256:hash, size:bytes.length});
@@ -70,6 +77,13 @@ function harness({ badFirstDownload = false, failedUpload = false, corsFailure =
     assert(!h.calls.some(x => /fragment|secret/.test(x.url)));
   }
   {
+    const h = harness();
+    const blob = new Blob([bytes], {type: 'application/octet-stream'});
+    assert.deepEqual({...await h.api.uploadEncrypted(blob, hash)}, {hash, direct:true},
+      'chunk-hashed ciphertext Blobs should upload without full arrayBuffer copies');
+    assert(!h.calls.some(x => x.url === '/upload-raw'));
+  }
+  {
     const h = harness({ failedUpload:true });
     assert.deepEqual({...await h.api.uploadEncrypted(bytes, hash)}, {hash, direct:false});
     assert(h.calls.some(x => x.url === '/upload-raw'),
@@ -86,6 +100,14 @@ function harness({ badFirstDownload = false, failedUpload = false, corsFailure =
     assert.deepEqual(Array.from(result), Array.from(bytes));
     assert.equal(h.calls.filter(x => x.url === '/d/' + hash + '?cipher=1').length, 0);
     assert(h.calls.filter(x => x.url.endsWith('/' + hash)).length >= 2);
+  }
+  {
+    const h = harness({ badFirstDownload:true });
+    await h.api.downloadEncrypted(hash);
+    await h.api.downloadEncrypted(hash);
+    const firstCalls = h.calls.filter(x => x.url.startsWith(relays[0]) && x.url.endsWith('/' + hash));
+    assert.equal(firstCalls.length, 1,
+      'recently corrupt Blossom relays should be deprioritized behind healthy origins');
   }
   {
     const h = harness({ corsFailure:true });
