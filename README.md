@@ -169,9 +169,13 @@ backend from the file-byte path **when those relays permit CORS**.
 - **Privacy trade-off:** direct requests expose a client's IP or Tor exit
   address and encrypted blob hash to the relay. Users can tick **Private relay
   access** to proxy via insomniaXXX instead; this preference is stored only
-  in same-tab `sessionStorage`. The browser-to-relay link never contains the
-  share/decryption key. Users needing the strongest anonymity should choose
-  the proxy, or use Tor and trusted relays.
+  in same-tab `sessionStorage`. **New recipients opening a share link
+  default to proxy mode**, so a direct request cannot disclose an address
+  before consent; they can uncheck to opt in to direct downloads. Uploaders
+  see the disclosure before submitting a WASM upload (direct by default).
+  The browser-to-relay link never contains the share/decryption key. Users
+  needing the strongest anonymity should choose the proxy, or use Tor and
+  trusted relays.
 - Relay support is not guaranteed: **CORS must allow the site origin, PUT/GET,
   `Authorization`, `X-SHA-256`, and `Content-Type`**; relays must accept
   hash-scoped ephemeral BUD-02 upload authorizations and expose upload JSON
