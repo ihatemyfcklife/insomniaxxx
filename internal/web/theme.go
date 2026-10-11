@@ -408,7 +408,7 @@ const (
 		.preview-mascot {
 			position: absolute;
 			bottom: 100%;
-			right: 0;
+			right: 3rem;
 			height: 205px;
 			width: auto;
 			max-width: 40%;
@@ -425,6 +425,7 @@ const (
 		@media (max-width: 768px) {
 			.preview-mascot {
 				height: 130px;
+				right: 0;
 				opacity: 0.2;
 				max-width: 50%;
 			}
@@ -511,6 +512,11 @@ const (
 			height: auto;
 			display: block;
 			object-fit: contain;
+			pointer-events: none;
+			user-select: none;
+			-webkit-user-select: none;
+			-webkit-user-drag: none;
+			-webkit-touch-callout: none;
 			filter:
 				drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.65))
 				drop-shadow(0 0 12px rgba(248, 105, 191, 0.38))
