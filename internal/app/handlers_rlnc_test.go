@@ -3,10 +3,13 @@ package app
 import (
 	"bytes"
 	"crypto/rand"
+	"html"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -17,6 +20,40 @@ import (
 	"anonblossom/internal/guard"
 	"anonblossom/internal/web"
 )
+
+// Extract the share URL from its dedicated HTML input. Searching the whole
+// page for "/d/" can accidentally match random Base64 data in the QR image.
+func sharePathFromReadyPage(t *testing.T, markup string) string {
+	t.Helper()
+	const marker = `<input id="share" value="`
+	_, after, found := strings.Cut(markup, marker)
+	if !found {
+		t.Fatal("missing share link input")
+	}
+	value, _, found := strings.Cut(after, `"`)
+	if !found {
+		t.Fatal("malformed share link input")
+	}
+	shareURL, err := url.Parse(html.UnescapeString(value))
+	if err != nil {
+		t.Fatalf("invalid share URL: %v", err)
+	}
+	if _, _, valid := cryptbox.ParseDownloadPath(shareURL.Path); !valid {
+		t.Fatal("share input contains an invalid download path")
+	}
+	return shareURL.Path
+}
+
+func TestSharePathFromReadyPageIgnoresQRCodeBase64(t *testing.T) {
+	hash := strings.Repeat("a", 64)
+	key := cryptbox.ShareKeyText(bytes.Repeat([]byte{1}, 32))
+	want := "/d/" + hash + "/" + key
+	markup := `<img src="data:image/png;base64,AAA/d/not-the-share-link">` +
+		`<input id="share" value="https://files.example` + want + `" readonly>`
+	if got := sharePathFromReadyPage(t, markup); got != want {
+		t.Fatalf("extracted %q, want %q", got, want)
+	}
+}
 
 func setupTestServer(t *testing.T) (*Server, map[string]map[string][]byte, func()) {
 	storageMap := make(map[string]map[string][]byte)
@@ -160,17 +197,7 @@ func TestUploadDownloadSmallFileDistributed(t *testing.T) {
 	if manifestCount < 2 {
 		t.Fatalf("small file encrypted manifest not redundantly replicated: %d", manifestCount)
 	}
-	pathPrefix := "/d/"
-	start := bytes.Index([]byte(readyHTML), []byte(pathPrefix))
-	if start == -1 {
-		t.Fatal("missing small-file share link")
-	}
-	prefix := readyHTML[start:]
-	end := bytes.IndexAny([]byte(prefix), "\" \n<")
-	if end < 0 {
-		t.Fatal("malformed share link")
-	}
-	sharePath := prefix[:end]
+	sharePath := sharePathFromReadyPage(t, readyHTML)
 	dlReq := httptest.NewRequest(http.MethodGet, sharePath+"?download=1", nil)
 	dlRec := httptest.NewRecorder()
 	server.handleDownload(dlRec, dlReq)
@@ -221,14 +248,7 @@ func TestUploadDownloadLargeFileRLNC(t *testing.T) {
 	// Extraire l'URL de téléchargement depuis le lien partagé
 	// L'URL est de la forme /d/<manifestHash>/<keyText>
 	readyHTML := rec.Body.String()
-	pathPrefix := "/d/"
-	idx := bytes.Index([]byte(readyHTML), []byte(pathPrefix))
-	if idx == -1 {
-		t.Fatalf("could not find /d/ path in ready HTML")
-	}
-	sub := readyHTML[idx:]
-	endIdx := bytes.IndexAny([]byte(sub), "\" \n<")
-	sharePath := sub[:endIdx]
+	sharePath := sharePathFromReadyPage(t, readyHTML)
 	t.Logf("Share path: %s", sharePath)
 
 	hash, key, ok := cryptbox.ParseDownloadPath(sharePath)
