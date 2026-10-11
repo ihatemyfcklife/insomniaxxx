@@ -329,6 +329,57 @@ func TestUploadButtonLoadingNeedsExplicitState(t *testing.T) {
 	}
 }
 
+func TestZKDownloadProxyOptionsBelowPreview(t *testing.T) {
+	pages, err := NewPages()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := httptest.NewRecorder()
+	if err := pages.View(rec, PageData{
+		Title:     "insomniaXXX",
+		ZK:        true,
+		CipherURL: "/d/example?cipher=1",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	body := rec.Body.String()
+	positions := []struct {
+		name string
+		html string
+	}{
+		{"revealed content", `id="zkContent"`},
+		{"file preview", `id="previewBox"`},
+		{"proxy option", `id="zkProxyOptions"`},
+		{"download buttons", `<div class="grid">`},
+	}
+	prev := -1
+	for _, part := range positions {
+		pos := strings.Index(body, part.html)
+		if pos <= prev {
+			t.Fatalf("%s must appear after the preceding preview element", part.name)
+		}
+		prev = pos
+	}
+	if strings.Count(body, `id="proxyOnly"`) != 1 {
+		t.Fatal("Zero-Knowledge download must render exactly one proxy checkbox")
+	}
+
+	// Server-side and onion views must not show the browser-only proxy toggle.
+	for _, data := range []PageData{
+		{Title: "insomniaXXX"},
+		{Title: "insomniaXXX", ZK: true, ServerMode: true},
+	} {
+		other := httptest.NewRecorder()
+		if err := pages.View(other, data); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(other.Body.String(), `id="proxyOnly"`) {
+			t.Fatal("browser-only proxy checkbox appeared in another download mode")
+		}
+	}
+}
+
 func TestNoJSButtonLoadingStates(t *testing.T) {
 	pages, err := NewPages()
 	if err != nil {
