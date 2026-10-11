@@ -24,12 +24,12 @@
         <span class="btn-text">Upload</span>
         <span class="btn-loading"><span class="btn-spinner" aria-hidden="true"></span>Uploading &amp; Encrypting...</span>
       </button>
-      <small id="wasmStatus" class="muted">{{if .ServerMode}}Tor / No-JS works without JavaScript. Files are encrypted before reaching Blossom, while this server handles the file and its key. For browser-side encryption, we recommend Zero-Knowledge (WASM) when available.{{else}}Preparing local encryption… Upload stays disabled if it cannot start.{{end}}</small>
+      <small id="wasmStatus" class="muted">{{if .ServerMode}}Tor mode works without JavaScript. Files are encrypted before reaching Blossom, while this server handles the file and its key. For browser-side encryption, we recommend Zero-Knowledge (WASM) when available.{{else}}Preparing local encryption… Upload stays disabled if it cannot start.{{end}}</small>
       {{if not .ServerMode}}<noscript><p>Local encryption requires JavaScript and WebAssembly. Use the onion service for server processing without JavaScript.</p></noscript>{{end}}
     </form>
 
     {{if not .ServerMode}}
-    <div class="upload-note">
+    <div class="upload-note" id="proxyOptions" hidden>
       <label><input id="proxyOnly" type="checkbox"> Private relay access: route encrypted transfers through insomniaXXX instead of connecting directly to Blossom.</label>
       <small class="muted">WASM direct transfer can reveal your IP address (or Tor exit address) and blob hashes to the Blossom relays. Encryption keys never leave the browser. Check this option to use the app as a relay proxy instead. Direct failures never enable the proxy automatically.</small>
     </div>
