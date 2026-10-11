@@ -391,17 +391,25 @@ const (
 			transition-delay: 0s, 0s !important;
 		}
 
-		/* No-JS upload displays progress only during a valid button press. */
-		#file:valid ~ #submitBtn:active .btn-text,
-		form:has(#file:valid) #submitBtn:active .btn-text {
-			visibility: hidden !important;
-			opacity: 0 !important;
+		/* A native No-JS form cannot set .is-loading in JavaScript.
+		   Start on a valid :active press, then delay reversing the styles
+		   while the browser posts the file and navigates to the response.
+		   Do not trigger on :focus: keyboard navigation is not submission. */
+		#submitBtn.nojs-upload .btn-text,
+		#submitBtn.nojs-upload .btn-loading {
+			transition: opacity 0s linear 999s, visibility 0s linear 999s;
 		}
 
-		#file:valid ~ #submitBtn:active .btn-loading,
-		form:has(#file:valid) #submitBtn:active .btn-loading {
+		#file:valid ~ #submitBtn.nojs-upload:active .btn-text {
+			visibility: hidden !important;
+			opacity: 0 !important;
+			transition-delay: 0s, 0s !important;
+		}
+
+		#file:valid ~ #submitBtn.nojs-upload:active .btn-loading {
 			visibility: visible !important;
 			opacity: 1 !important;
+			transition-delay: 0s, 0s !important;
 		}
 
 		/* Decorative mascot floats above the top-right corner of the preview,
