@@ -12,6 +12,10 @@
   <main class="container">
     {{template "logo" .}}
     {{if .ZK}}
+      <div class="view-note">
+        <label><input id="proxyOnly" type="checkbox"> Use insomniaXXX as a proxy instead of directly connecting to Blossom relays.</label>
+        <small class="muted">Direct downloads reveal your IP address (or Tor exit) and encrypted blob hash to storage relays. This option reloads the page to apply your preference; your key stays in the URL fragment.</small>
+      </div>
       <!-- ZK loading screen: shown while the manifest, shards, and decryption are loading -->
       <section id="zkLoader" class="zk-loading-container" aria-live="polite">
         <noscript>

@@ -8,6 +8,26 @@
   const DIRECT_TIMEOUT_MS = 45000;
   let relayList = null;
 
+  // A direct relay learns the browser's public network/Tor exit address.
+  // Anyone can choose app-proxied transfers for additional relay privacy.
+  function proxyOnly() {
+    try { return root.sessionStorage.getItem("insomnia:proxy-only") === "1"; }
+    catch (_) { return false; }
+  }
+
+  const preference = document.getElementById("proxyOnly");
+  if (preference) {
+    preference.checked = proxyOnly();
+    preference.addEventListener("change", () => {
+      try {
+        root.sessionStorage.setItem("insomnia:proxy-only", preference.checked ? "1" : "0");
+      } catch (_) {}
+      // A viewer may have already begun fetching; reload for an immediate
+      // transport switch without losing the fragment-based decryption key.
+      if (root.location.pathname.startsWith("/d/")) root.location.reload();
+    });
+  }
+
   function allowedRelay(raw) {
     if (typeof raw !== "string" || raw.length > 300) return null;
     try {
@@ -105,7 +125,9 @@
     if (!validHash(hash) || !Number.isSafeInteger(maxBytes) ||
         maxBytes <= 0 || maxBytes > MAX_BLOB) throw new Error("invalid encrypted download");
     let relays = [];
-    try { relays = await configuredRelays(); } catch (_) { /* proxy fallback */ }
+    if (!proxyOnly()) {
+      try { relays = await configuredRelays(); } catch (_) { /* proxy fallback */ }
+    }
     for (const relay of relays) {
       if (signal && signal.aborted) throw new Error("transfer cancelled");
       try {
@@ -155,6 +177,7 @@
         !localHashMatches(data, hash)) {
       throw new Error("encrypted upload SHA-256 or size is invalid");
     }
+    if (proxyOnly()) return proxyUpload(data, hash);
     let targets = [];
     try {
       const known = await configuredRelays();

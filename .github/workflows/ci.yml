@@ -49,6 +49,8 @@ jobs:
         run: |
           node --check internal/app/static/boot.js
           node --check internal/app/static/view.js
+          node --check internal/app/static/direct-blossom.js
+          node --check tests/direct-blossom.test.cjs
           node --check tests/frontend.test.cjs
           node --check tests/load/cipher-download.mjs
           node --check tests/load/mixed-transfers.mjs
@@ -56,6 +58,7 @@ jobs:
           node --check tests/zk-fragment.test.cjs
           node tests/zk-fragment.test.cjs
           node tests/frontend.test.cjs
+          node tests/direct-blossom.test.cjs
 
       - name: Run tests with race detector
         run: go test -race -count=1 ./...
