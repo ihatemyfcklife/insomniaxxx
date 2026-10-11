@@ -207,7 +207,6 @@ func (a *Server) handleUploadRLNC(w http.ResponseWriter, r *http.Request, file i
 	})
 }
 
-
 // Overload is transient, not a malformed upload. Both browser and API clients
 // receive a retryable response before any additional expensive work starts.
 func (a *Server) rejectUploadOverload(w http.ResponseWriter) {

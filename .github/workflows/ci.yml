@@ -101,4 +101,3 @@ jobs:
 
       - name: Build production container
         run: docker build --build-arg VERSION="${GITHUB_SHA}" --tag anonblossom:ci .
-

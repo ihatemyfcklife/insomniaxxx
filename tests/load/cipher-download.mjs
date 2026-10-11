@@ -41,4 +41,3 @@ export default function () {
     r.body instanceof ArrayBuffer && crypto.sha256(r.body, 'hex') === hash.toLowerCase() });
   sleep(0.1);
 }
-
