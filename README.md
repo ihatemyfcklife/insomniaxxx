@@ -61,6 +61,38 @@ make fmt
 make vet
 ```
 
+## Windows (PowerShell)
+
+`make` alone installs/verifies dependencies; use `make build` to compile and
+`make run` to start. On Windows these targets use `scripts/dev.ps1`, with no
+Unix shell required. The Windows executable is `bin/anonblossom.exe`.
+Both `build` and `run` prepare the browser WASM assets first.
+
+Without Make, run these commands from the extracted project directory:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1 -Task deps
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1 -Task build
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1 -Task run
+```
+
+For a local HTTP test, set these values in `.env` (update an existing file
+rather than overwriting other settings):
+
+```dotenv
+APP_ENV=development
+LISTEN_ADDR=127.0.0.1:8080
+PUBLIC_BASE_URL=http://localhost:8080
+ONIONGUARD_COOKIE_SECURE=false
+```
+
+Open http://localhost:8080 after startup. Stop with Ctrl+C. The PowerShell
+`run` task loads `.env` assignments into its child process. It accepts comments,
+`KEY=value`, optional `export`, and single/double quoted values. Values remain
+literal: shell interpolation and commands are not supported. These assignments
+override inherited variables. Running the `.exe` directly requires setting the
+environment yourself. `-ExecutionPolicy Bypass` applies only to this invocation.
+
 ## Frontend
 
 The interface is intentionally minimal: one page with two possible execution paths. Which one runs depends on whether JavaScript and WebAssembly are available in the browser. Pico CSS is bundled with the binary and served locally from `/static/`:
