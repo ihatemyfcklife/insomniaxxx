@@ -11,6 +11,7 @@
   const status = document.getElementById("zkStatus");
   const box = document.getElementById("previewBox");
   const dl = document.getElementById("zkDownload");
+  const proxyOptions = document.getElementById("zkProxyOptions");
 
   function setStatus(msg, isError) {
     if (status) {
@@ -23,6 +24,9 @@
         statusTitle.textContent = "Error";
         statusTitle.style.color = "var(--pico-del-color, #ff6b6b)";
       }
+      // The preview stays hidden on failure. Make the existing proxy toggle
+      // reachable under the error message so a failed direct fetch can be retried.
+      if (loader && proxyOptions) loader.appendChild(proxyOptions);
     }
   }
 
