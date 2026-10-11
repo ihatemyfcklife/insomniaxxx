@@ -11,7 +11,7 @@ import (
 
 func TestDirectUploadBatchScopesEachHashAndBoundsCPU(t *testing.T) {
 	a := directTestServer()
-	hash := func(i byte) string { return strings.Repeat(string(i), 64) }
+	hash := func(i byte) string { return strings.Repeat("a", 63) + string("0123456789abcdef"[i%16]) }
 	blobs := make([]directBlobRequest, 8)
 	for i := range blobs {
 		blobs[i] = directBlobRequest{Hash: hash(byte('a' + i)), Size: 32}
