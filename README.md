@@ -24,6 +24,8 @@ Go 1.26.0 or newer is required (see the `go` directive in `go.mod`). The Docker 
 
 Copy `.env.example` and configure the deployment environment. For public deployments, follow the [production checklist](#production-deployment-checklist).
 
+**Upload size:** the default is **64 MiB** (67,108,864 bytes), which is also the current maximum supported by the RLNC/WebAssembly pipeline. A real 1 GiB upload is **not yet supported** (see [issue #32](https://github.com/ihatemyfcklife/insomniaxxx/issues/32)); it requires bounded-memory segmented encryption and reconstruction. If your home page still says **19.0 MiB** after updating, check your existing `.env` or process environment for `MAX_UPLOAD_BYTES=19922944` and change or remove that override. Updating `.env.example` does not overwrite your existing `.env`. Rebuild and restart the server after changing the source.
+
 ```sh
 export BLOSSOM_URLS=https://cdn.hzrd149.com,https://nostr.download,https://blossom.poster.place,https://cdn.sovbit.host
 export PUBLIC_BASE_URL=https://files.example
