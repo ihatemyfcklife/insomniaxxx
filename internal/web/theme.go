@@ -426,6 +426,16 @@ const (
 		.no-preview {
 			padding: 2rem;
 			text-align: center;
+			width: 100%;
+		}
+
+		.no-preview-cross {
+			display: block;
+			width: 128px;
+			height: 128px;
+			max-width: 100%;
+			margin: 1rem auto 0;
+			object-fit: contain;
 		}
 
 		/* Animation et état de chargement Zero-Knowledge / RLNC */

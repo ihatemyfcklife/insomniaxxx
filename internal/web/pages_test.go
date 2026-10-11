@@ -42,6 +42,35 @@ func TestDoneRendersInlineQRAndTheme(t *testing.T) {
 	}
 }
 
+func TestUnavailablePreviewShowsCrossInBothDownloadModes(t *testing.T) {
+	pages, err := NewPages()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name string
+		data PageData
+	}{
+		{"zero-knowledge", PageData{Title: "insomniaXXX", ZK: true}},
+		{"server-decrypted", PageData{Title: "insomniaXXX"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			if err := pages.View(rec, tc.data); err != nil {
+				t.Fatal(err)
+			}
+			body := rec.Body.String()
+			message := `No preview available for this file format.</p>`
+			image := `<img class="no-preview-cross" src="/static/preview-unavailable.png" alt="" width="128" height="128" loading="lazy">`
+			messageAt := strings.Index(body, message)
+			imageAt := strings.Index(body, image)
+			if messageAt < 0 || imageAt <= messageAt {
+				t.Fatal("large no-preview PNG must follow the fallback message")
+			}
+		})
+	}
+}
+
 func TestAllPagesRenderLogo(t *testing.T) {
 	pages, err := NewPages()
 	if err != nil {
