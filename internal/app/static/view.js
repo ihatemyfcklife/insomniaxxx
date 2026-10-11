@@ -174,6 +174,13 @@
         const fallback = document.createElement("div");
         fallback.className = "no-preview muted";
         fallback.appendChild(message);
+        const cross = document.createElement("img");
+        cross.className = "no-preview-cross";
+        cross.src = "/static/preview-unavailable.png";
+        cross.alt = "";
+        cross.width = 128;
+        cross.height = 128;
+        fallback.appendChild(cross);
         box.replaceChildren(fallback);
       }
     }
