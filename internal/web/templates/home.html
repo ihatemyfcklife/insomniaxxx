@@ -35,7 +35,7 @@
     </div>
     {{end}}
     <div class="upload-note">
-      <small class="muted">Maximum upload size: {{.MaxUpload}}. Encrypted across public Blossom instances · <a href="/relays" class="view-relays-link">View Relays</a></small>
+      <small class="muted">Maximum upload size: <span class="upload-limit-value">{{.MaxUpload}}</span>. Encrypted across public Blossom instances · <a href="/relays" class="view-relays-link">View Relays</a></small>
     </div>
 
     {{template "footer" .}}
