@@ -5,35 +5,53 @@ const src = fs.readFileSync('internal/app/static/boot.js', 'utf8');
 
 function mockElement() {
   const listeners = {};
+  const classes = new Set();
   return {
     dataset: {}, files: [], listeners, style: {},
-    classList: { add() {}, remove() {} },
+    classList: {
+      add(name) { classes.add(name); },
+      remove(name) { classes.delete(name); },
+      contains(name) { return classes.has(name); }
+    },
     addEventListener(event, listener) { listeners[event] = listener; },
     setAttribute() {},
     querySelector() { return null; },
-    prepend() {}
+    prepend() {},
+    appendChild() {}
   };
 }
 
-async function createPage({size, maxSize, wasmFailure=false}) {
+async function createPage({size, maxSize, wasmFailure=false, fileSelected=true, encryptFailure=false}) {
   const calls = []; const alerts = [];
   let readCount = 0, encryptCount = 0, qrText = null;
   const form = mockElement();
   const input = mockElement();
   input.dataset.maxUploadBytes = String(maxSize);
-  input.files = [{
+  input.files = fileSelected ? [{
     name: 'fixture.txt', type:'text/plain', size,
     async arrayBuffer() { readCount++; return new Uint8Array([42,43]).buffer; }
-  }];
+  }] : [];
+  const submit = mockElement();
+  submit.disabled = true;
+  const submitText = mockElement();
+  const loading = mockElement();
+  const mascot = mockElement();
+  submit.querySelector = (selector) => ({
+    '.btn-text': submitText,
+    '.btn-loading': loading,
+    'img.upload-btn-mascot': mascot
+  })[selector] || null;
   const ids = {uploadForm:form, file:input, wasmStatus:mockElement(),
     architectureImg:mockElement(), architectureDetailsNoJS:mockElement(),
     architectureDetailsWasm:mockElement(), modeToggle:mockElement(),
-    btnModeNoJS:mockElement(), btnModeWasm:mockElement(), submitBtn:null};
+    btnModeNoJS:mockElement(), btnModeWasm:mockElement(), submitBtn:submit};
   const sandbox = {
     console, Uint8Array, Blob, FormData, Number, setTimeout,
     document: {
       getElementById(id) { return ids[id] ?? null; },
-      querySelector() { return null; }
+      querySelector() { return null; },
+      createElement() { return mockElement(); },
+      createTextNode(text) { return { textContent: text }; }
     },
     window: {location:{origin:'https://files.example'}, InsomniaDirect:{
       async uploadEncrypted(bytes, hash) {calls.push({url:'direct-relay-upload'}); return {hash};}
@@ -50,7 +68,11 @@ async function createPage({size, maxSize, wasmFailure=false}) {
     alert(text) {alerts.push(text);},
     Go: class {constructor(){this.importObject={};} run(){}},
     WebAssembly: {async instantiate(){if(wasmFailure) throw new Error("failed"); return {instance:{}};}},
-    wasmEncrypt(){encryptCount++;return {ciphertext:new Uint8Array([1,2]),hash:'a'.repeat(64),key:'secret-fragment'};},
+    wasmEncrypt(){
+      encryptCount++;
+      if (encryptFailure) return {error:'encryption failed'};
+      return {ciphertext:new Uint8Array([1,2]),hash:'a'.repeat(64),key:'secret-fragment'};
+    },
     wasmGenerateQR(share){qrText=share;return new Uint8Array([137,80,78,71]);},
     async fetch(url,options) {
       calls.push({url,options});
@@ -74,6 +96,18 @@ async function createPage({size, maxSize, wasmFailure=false}) {
   assert.equal(failed.stats().readCount,0);
   assert(!failed.calls.some(x=>x.url==='/upload-raw'));
 
+  const empty=await createPage({size:42,maxSize:1024,fileSelected:false});
+  assert.equal(empty.ids.submitBtn.disabled,false,'successful Wasm startup enables uploads');
+  assert.equal(empty.ids.submitBtn.classList.contains('is-loading'),false,'idle upload must not show progress');
+  await empty.form.onsubmit({preventDefault(){}});
+  assert.equal(empty.ids.submitBtn.classList.contains('is-loading'),false,'no-file submission must not show progress');
+  assert.equal(empty.stats().encryptCount,0);
+
+  const failedEncrypt=await createPage({size:42,maxSize:1024,encryptFailure:true});
+  await failedEncrypt.form.onsubmit({preventDefault(){}});
+  assert.equal(failedEncrypt.ids.submitBtn.classList.contains('is-loading'),false,'failed upload must reset progress state');
+  assert.equal(failedEncrypt.ids.submitBtn.disabled,false,'failed upload must re-enable button');
+
   const oversized=await createPage({size:20*1024*1024,maxSize:19*1024*1024});
   let prevented=0;
   await oversized.form.onsubmit({preventDefault(){prevented++;}});
@@ -92,7 +126,9 @@ async function createPage({size, maxSize, wasmFailure=false}) {
 
   const zk=await createPage({size:42,maxSize:19*1024*1024});
   prevented=0;
-  await zk.form.onsubmit({preventDefault(){prevented++;}});
+  const upload = zk.form.onsubmit({preventDefault(){prevented++;}});
+  assert.equal(zk.ids.submitBtn.classList.contains('is-loading'),true,'upload shows progress only after submit');
+  await upload;
   assert.equal(prevented,1);
   assert.equal(zk.stats().encryptCount,1);
   assert(zk.stats().qrText?.includes('#secret-fragment'));
