@@ -24,7 +24,7 @@
         <span class="btn-text">Upload</span>
         <span class="btn-loading"><span class="btn-spinner" aria-hidden="true"></span>Uploading &amp; Encrypting...</span>
       </button>
-      <small id="wasmStatus" class="muted">{{if .ServerMode}}Onion mode: the server encrypts and reconstructs files. It can access plaintext and decryption keys.{{else}}Preparing local encryption… Upload stays disabled if it cannot start.{{end}}</small>
+      <small id="wasmStatus" class="muted">{{if .ServerMode}}<strong>Privacy warning: No-JS / Tor is not Zero-Knowledge.</strong> Your original file is sent to the insomniaXXX server, which generates the decryption key and can read its contents during upload, preview and download. Share links include the key in the URL path, so server or proxy logs could expose it. <strong>For sensitive files, we recommend Zero-Knowledge (WASM) mode on the clearnet site with JavaScript enabled.</strong> WASM encrypts and decrypts in your browser, keeping the plaintext and key away from this server. Enable "Private relay access" in WASM mode to avoid connecting directly to Blossom relays.{{else}}Preparing local encryption… Upload stays disabled if it cannot start.{{end}}</small>
       {{if not .ServerMode}}<noscript><p>Local encryption requires JavaScript and WebAssembly. Use the onion service for server processing without JavaScript.</p></noscript>{{end}}
     </form>
 
