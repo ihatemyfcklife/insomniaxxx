@@ -10,8 +10,9 @@ const relays = ['https://first.example', 'https://second.example'];
 const auth = 'Nostr ' + 'A'.repeat(80);
 const sha = data => createHash('sha256').update(data).digest('hex');
 
-function harness({ badFirstDownload = false, failedUpload = false, corsFailure = false, proxyOnly = false, view = false } = {}) {
+function harness({ badFirstDownload = false, failedUpload = false, corsFailure = false, proxyOnly = false, view = false, thirdRelay = false } = {}) {
   const calls = [];
+  const configured = thirdRelay ? [...relays, 'https://third.example'] : relays;
   let incremental = null;
   const window = {
     location: { origin: 'https://files.example', pathname: view ? '/d/' + hash : '/' },
@@ -26,12 +27,12 @@ function harness({ badFirstDownload = false, failedUpload = false, corsFailure =
   const fetch = async (url, options = {}) => {
     calls.push({url, options});
     if (url === '/direct-relays') {
-      return Response.json({ relays });
+      return Response.json({ relays: configured });
     }
     if (url === '/direct-upload-auth') {
       assert.equal(options.method, 'POST');
       assert.equal(JSON.parse(options.body).hash, hash);
-      return Response.json({ targets: relays.map(url => ({url, authorization: auth})) });
+      return Response.json({ targets: configured.map(url => ({url, authorization: auth})) });
     }
     if (url === '/upload-raw') {
       assert.equal(options.method, 'POST');
@@ -82,6 +83,29 @@ function harness({ badFirstDownload = false, failedUpload = false, corsFailure =
     assert.deepEqual({...await h.api.uploadEncrypted(blob, hash)}, {hash, direct:true},
       'chunk-hashed ciphertext Blobs should upload without full arrayBuffer copies');
     assert(!h.calls.some(x => x.url === '/upload-raw'));
+  }
+  {
+    const h = harness({ thirdRelay: true });
+    const expected = [
+      ['https://first.example/upload', 'https://second.example/upload'],
+      ['https://second.example/upload', 'https://third.example/upload'],
+      ['https://third.example/upload', 'https://first.example/upload']
+    ];
+    for (let shardIndex = 0; shardIndex < 3; shardIndex++) {
+      const before = h.calls.length;
+      assert.deepEqual({...await h.api.uploadEncrypted(bytes, hash, {shardIndex})}, {hash,direct:true});
+      const locations = h.calls.slice(before).filter(x => x.options.method === 'PUT').map(x=>x.url);
+      assert.deepEqual(locations, expected[shardIndex],
+        'each ciphertext shard should use a rotating distinct-host pair');
+    }
+    assert(!h.calls.some(x=>x.url==='/upload-raw'));
+  }
+  {
+    const h = harness({ thirdRelay: true, failedUpload:true });
+    assert.deepEqual({...await h.api.uploadEncrypted(bytes,hash,{shardIndex:0})}, {hash,direct:true});
+    assert.equal(h.calls.filter(x=>x.options.method==='PUT').length,3,
+      'a failed target should use the third configured relay before proxying');
+    assert(!h.calls.some(x=>x.url==='/upload-raw'));
   }
   {
     const h = harness({ failedUpload:true });

@@ -44,13 +44,11 @@ type Manifest struct {
 	Relays        []string          `json:"relays"`             // URLs des relais utilisés
 }
 
-// CalculateKN détermine les paramètres K et N adaptés à la taille du fichier.
-// Pour les fichiers de 2 à 4 Mo, K=4, N=6 (shards de ~512 Ko à 1 Mo).
-// Pour les fichiers plus gros, shards d'environ 1 Mo max.
+// CalculateKN always produces erasure-coded shards, even for an empty or
+// one-byte file. Four systematic + two parity shards are the minimum,
+// avoiding a single full-file blob on Blossom for small transfers.
+// For larger files, target roughly 1 MiB shards, up to K=64/N=96.
 func CalculateKN(size int64) (k, n int) {
-	if size <= Threshold {
-		return 1, 1
-	}
 	targetChunk := int64(1 << 20) // 1 MiB
 	k = int((size + targetChunk - 1) / targetChunk)
 	if k < DefaultK {

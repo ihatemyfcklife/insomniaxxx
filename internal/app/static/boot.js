@@ -177,9 +177,7 @@ if (typeof WebAssembly !== "undefined") {
       return { hash: info.hash };
     }
 
-    const RLNC_THRESHOLD = 2 * 1024 * 1024; // 2 Mo
-
-    form.onsubmit = async (e) => {
+     form.onsubmit = async (e) => {
       if (activeMode === "nojs") return; // Allow normal form submission.
       e.preventDefault();
       const input = document.getElementById("file");
@@ -272,29 +270,16 @@ if (typeof WebAssembly !== "undefined") {
           return;
         }
 
-        // Cas 1 : Fichier <= 2 Mo -> upload direct d'un blob monolithique classique
-        if (file.size <= RLNC_THRESHOLD) {
-          setBtnState("Uploading...");
-
-          const hash = typeof wasmSHA256 === "function"
-            ? wasmSHA256(enc.ciphertext) : enc.hash;
-          const result = window.InsomniaDirect
-            ? await window.InsomniaDirect.uploadEncrypted(enc.ciphertext, hash)
-            : await uploadViaProxy(enc.ciphertext, hash);
-          const shareURL = window.location.origin + "/d/" + result.hash + "#" + enc.key;
-          renderReady(file.name, file.size, result.hash, enc.key, shareURL);
-          return;
-        }
-
-        // Cas 2 : Fichier > 2 Mo -> éparpillement RLNC (K=4, N=6 par défaut)
-        setBtnState("Encoding RLNC shards...");
+        // ALL files, including zero-byte and tiny files, are sharded.
+        // Only a short encrypted manifest is replicated as a full blob.
+        setBtnState("Encoding distributed RLNC shards...");
 
         const k = Math.min(64, Math.max(4, Math.ceil(file.size / (1024 * 1024))));
         const n = Math.max(6, k + Math.floor(k / 2));
 
         // RLNC currently needs random access to the complete encrypted
-        // ciphertext. Only this large-file stage materializes that buffer;
-        // no second full-sized plaintext copy is created.
+        // ciphertext. This stage materializes the encrypted buffer, never
+        // a second full plaintext copy; small files follow the same path.
         const cipherBytes = enc.ciphertext instanceof Blob
           ? new Uint8Array(await enc.ciphertext.arrayBuffer())
           : enc.ciphertext;
@@ -305,8 +290,8 @@ if (typeof WebAssembly !== "undefined") {
           return;
         }
 
-        const uploadShard = (bytes, hash) => window.InsomniaDirect
-          ? window.InsomniaDirect.uploadEncrypted(bytes, hash)
+        const uploadShard = (bytes, hash, shardIndex) => window.InsomniaDirect
+          ? window.InsomniaDirect.uploadEncrypted(bytes, hash, { shardIndex })
           : uploadViaProxy(bytes, hash);
         let shardHashes;
         if (window.InsomniaStream) {
@@ -322,7 +307,7 @@ if (typeof WebAssembly !== "undefined") {
             setBtnState(`Uploading shard ${i + 1} of ${shards.length}...`);
             const hash = typeof wasmSHA256 === "function"
               ? wasmSHA256(shards[i]) : null;
-            const result = await uploadShard(shards[i], hash);
+            const result = await uploadShard(shards[i], hash, i);
             shardHashes.push(result.hash);
           }
         }

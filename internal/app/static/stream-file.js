@@ -75,7 +75,7 @@
           if (typeof root.wasmSHA256 !== "function") throw new Error("WASM SHA-256 unavailable");
           const hash = root.wasmSHA256(shards[index]);
           if (!/^[a-f0-9]{64}$/.test(hash)) throw new Error("invalid shard hash");
-          const result = await uploadOne(shards[index], hash);
+          const result = await uploadOne(shards[index], hash, index);
           if (!result || result.hash !== hash) throw new Error("relay shard receipt mismatch");
           hashes[index] = hash;
           completed++;

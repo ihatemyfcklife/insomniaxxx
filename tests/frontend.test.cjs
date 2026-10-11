@@ -36,6 +36,14 @@ async function createPage({size, maxSize}) {
       querySelector() { return null; }
     },
     window: {location:{origin:'https://files.example'}},
+    TextEncoder,
+    wasmSHA256(){return 'a'.repeat(64);},
+    wasmEncodeRLNC(_ciphertext,k,n){
+      assert.equal(k,4, 'small files must use K=4');
+      assert.equal(n,6, 'small files must have 6 RLNC shards');
+      return Array.from({length:n},()=>new Uint8Array(80));
+    },
+    wasmEncryptWithKey(){return {ciphertext:new Uint8Array([6,7]),hash:'a'.repeat(64)};},
     URL: {createObjectURL() {return 'blob:local-qr';}},
     alert(text) {alerts.push(text);},
     Go: class {constructor(){this.importObject={};} run(){}},
@@ -79,7 +87,8 @@ async function createPage({size, maxSize}) {
   assert.equal(prevented,1);
   assert.equal(zk.stats().encryptCount,1);
   assert(zk.stats().qrText?.includes('#secret-fragment'));
-  assert(zk.calls.some(x=>x.url==='/upload-raw'));
+  assert.equal(zk.calls.filter(x=>x.url==='/upload-raw').length, 7,
+    'a tiny file must upload six RLNC shards and one encrypted manifest');
   assert(!zk.calls.some(x=>x.url.includes('/qr?')||x.url.includes('secret-fragment')),
     'share keys must not appear in network URLs');
   console.log('Frontend upload-limit, mode-switch, and zero-knowledge QR network checks passed');

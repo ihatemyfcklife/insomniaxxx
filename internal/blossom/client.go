@@ -728,16 +728,29 @@ func (c *Client) UploadDistributedShards(ctx context.Context, shards [][]byte, s
 		return nil, errors.New("at least two independent Blossom relays are required for durable RLNC storage")
 	}
 
-	// Si moins de 2 cibles, tenter d'ajouter d'autres serveurs actifs pour garantir au moins 2 ou 3 relais distincts
-	if len(targets) < 2 {
-		for _, u := range c.GetActiveURLs() {
-			if !contains(targets, u) {
-				targets = append(targets, u)
-			}
-			if len(targets) >= 3 {
-				break
+	// A relay host may expose multiple ports; two URLs on one host do not
+	// count as two independent storage operators.
+	distinct := make([]string, 0, len(targets))
+	hosts := make(map[string]bool, len(targets))
+	for _, target := range targets {
+		host := publicHost(target)
+		if c.allowPrivateRelays {
+			// Isolated httptest servers intentionally share 127.0.0.1 but
+			// listen on different ports. This exception is never enabled
+			// for public/production clients.
+			if parsed, err := url.Parse(target); err == nil {
+				host = parsed.Host
 			}
 		}
+		if host == "" || hosts[host] {
+			continue
+		}
+		hosts[host] = true
+		distinct = append(distinct, target)
+	}
+	targets = distinct
+	if len(targets) < 2 {
+		return nil, errors.New("two independent Blossom relay hosts are required")
 	}
 
 	if len(shards) == 0 || len(shards) != len(shardHashes) {
@@ -761,13 +774,12 @@ func (c *Client) UploadDistributedShards(ctx context.Context, shards [][]byte, s
 			shardData := shards[i]
 			size := int64(len(shardData))
 			storedCopies := 0
-			primaryTarget := targets[i%len(targets)]
+			// Rotate *both* storage destinations across the relay pool.
+			// With three hosts, shards go to A+B, B+C, C+A in turn;
+			// a single relay outage still leaves one copy of every shard.
 			orderedTargets := make([]string, 0, len(targets))
-			orderedTargets = append(orderedTargets, primaryTarget)
-			for _, t := range targets {
-				if t != primaryTarget {
-					orderedTargets = append(orderedTargets, t)
-				}
+			for offset := range targets {
+				orderedTargets = append(orderedTargets, targets[(i+offset)%len(targets)])
 			}
 			var lastErr error
 			for _, baseURL := range orderedTargets {
