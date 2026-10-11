@@ -497,7 +497,7 @@ func TestNoJSNativeUploadKeepsLoadingAnimationWithoutJavaScript(t *testing.T) {
 	if err := pages.Home(clearnet, PageData{Title: "insomniaXXX"}); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(clearnet.Body.String(), "nojs-upload") {
+	if strings.Contains(clearnet.Body.String(), `id="submitBtn" class="btn-action nojs-upload"`) {
 		t.Fatal("ZK upload must keep its JavaScript-controlled loading state")
 	}
 
