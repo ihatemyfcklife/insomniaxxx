@@ -81,7 +81,7 @@ func assertQRCodeThemeColors(t *testing.T, data []byte) {
 		t.Fatal(err)
 	}
 	background := color.RGBA{R: 0x18, G: 0x1C, B: 0x25, A: 0xFF}
-	foreground := color.RGBA{R: 0x52, G: 0x5F, B: 0x7A, A: 0xFF}
+	foreground := color.RGBA{R: 0xC2, G: 0xC7, B: 0xCA, A: 0xFF}
 	var backgroundCount, foregroundCount int
 	bounds := image.Bounds()
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
