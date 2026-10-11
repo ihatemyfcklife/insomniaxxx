@@ -41,7 +41,9 @@ async function createPage({size, maxSize, wasmFailure=false, fileSelected=true, 
     '.btn-loading': loading,
     'img.upload-btn-mascot': mascot
   })[selector] || null;
-  const ids = {uploadForm:form, file:input, wasmStatus:mockElement(), submitBtn:submit};
+  const proxyOptions = mockElement();
+  proxyOptions.hidden = true;
+  const ids = {uploadForm:form, file:input, wasmStatus:mockElement(), submitBtn:submit, proxyOptions};
   const sandbox = {
     console, Uint8Array, Blob, FormData, Number, setTimeout,
     document: {
@@ -91,10 +93,14 @@ async function createPage({size, maxSize, wasmFailure=false, fileSelected=true, 
   await failed.form.onsubmit({preventDefault(){blocked++;}});
   assert.equal(blocked,1,'failed WASM must not enable plaintext submission');
   assert.equal(failed.stats().readCount,0);
+  assert.equal(failed.ids.proxyOptions.hidden,true,
+    'WASM startup failure must leave the proxy checkbox and its description hidden');
   assert(!failed.calls.some(x=>x.url==='/upload-raw'));
 
   const empty=await createPage({size:42,maxSize:1024,fileSelected:false});
   assert.equal(empty.ids.submitBtn.disabled,false,'successful Wasm startup enables uploads');
+  assert.equal(empty.ids.proxyOptions.hidden,false,
+    'WASM startup must reveal the clearnet relay checkbox and description');
   assert.equal(empty.ids.submitBtn.classList.contains('is-loading'),false,'idle upload must not show progress');
   await empty.form.onsubmit({preventDefault(){}});
   assert.equal(empty.ids.submitBtn.classList.contains('is-loading'),false,'no-file submission must not show progress');
