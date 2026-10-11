@@ -476,6 +476,46 @@ func TestZKDownloadProxyOptionsBelowPreview(t *testing.T) {
 	}
 }
 
+func TestNoJSTorPrivacyNoticeRecommendsWASM(t *testing.T) {
+	pages, err := NewPages()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	onion := httptest.NewRecorder()
+	if err := pages.Home(onion, PageData{Title: "insomniaXXX", ServerMode: true}); err != nil {
+		t.Fatal(err)
+	}
+	body := onion.Body.String()
+	for _, required := range []string{
+		`id="wasmStatus" class="muted"`,
+		"Privacy warning: No-JS / Tor is not Zero-Knowledge.",
+		"Your original file is sent to the insomniaXXX server",
+		"generates the decryption key",
+		"can read its contents during upload, preview and download",
+		"server or proxy logs could expose it",
+		"we recommend Zero-Knowledge (WASM) mode",
+		"with JavaScript enabled",
+		"keeping the plaintext and key away from this server",
+		"Private relay access",
+	} {
+		if !strings.Contains(body, required) {
+			t.Fatalf("No-JS Tor notice missing required privacy information: %q", required)
+		}
+	}
+	if strings.Contains(body, "/static/boot.js") {
+		t.Fatal("No-JS Tor notice must work without JavaScript")
+	}
+
+	clearnet := httptest.NewRecorder()
+	if err := pages.Home(clearnet, PageData{Title: "insomniaXXX"}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(clearnet.Body.String(), "Privacy warning: No-JS / Tor") {
+		t.Fatal("server-side encryption warning must appear only in No-JS Tor mode")
+	}
+}
+
 func TestNoJSNativeUploadKeepsLoadingAnimationWithoutJavaScript(t *testing.T) {
 	pages, err := NewPages()
 	if err != nil {
