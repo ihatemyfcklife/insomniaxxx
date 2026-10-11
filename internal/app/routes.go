@@ -41,7 +41,7 @@ func (a *Server) routes() http.Handler {
 		h.ServeHTTP(w, r)
 	})
 
-	protectedApp := a.admission.Middleware(a.networkMode(muxWrapper))
+	protectedApp := a.networkMode(a.admission.Middleware(muxWrapper))
 
 	// 3. Routeur racine qui aiguille les requêtes
 	root := http.NewServeMux()

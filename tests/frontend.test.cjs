@@ -15,7 +15,7 @@ function mockElement() {
   };
 }
 
-async function createPage({size, maxSize}) {
+async function createPage({size, maxSize, wasmFailure=false}) {
   const calls = []; const alerts = [];
   let readCount = 0, encryptCount = 0, qrText = null;
   const form = mockElement();
@@ -49,7 +49,7 @@ async function createPage({size, maxSize}) {
     URL: {createObjectURL() {return 'blob:local-qr';}},
     alert(text) {alerts.push(text);},
     Go: class {constructor(){this.importObject={};} run(){}},
-    WebAssembly: {async instantiate(){return {instance:{}};}},
+    WebAssembly: {async instantiate(){if(wasmFailure) throw new Error("failed"); return {instance:{}};}},
     wasmEncrypt(){encryptCount++;return {ciphertext:new Uint8Array([1,2]),hash:'a'.repeat(64),key:'secret-fragment'};},
     wasmGenerateQR(share){qrText=share;return new Uint8Array([137,80,78,71]);},
     async fetch(url,options) {
@@ -67,6 +67,13 @@ async function createPage({size, maxSize}) {
 }
 
 (async()=>{
+  const failed=await createPage({size:42,maxSize:1024,wasmFailure:true});
+  let blocked=0;
+  await failed.form.onsubmit({preventDefault(){blocked++;}});
+  assert.equal(blocked,1,'failed WASM must not enable plaintext submission');
+  assert.equal(failed.stats().readCount,0);
+  assert(!failed.calls.some(x=>x.url==='/upload-raw'));
+
   const oversized=await createPage({size:20*1024*1024,maxSize:19*1024*1024});
   let prevented=0;
   await oversized.form.onsubmit({preventDefault(){prevented++;}});

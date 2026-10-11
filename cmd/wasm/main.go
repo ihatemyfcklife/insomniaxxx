@@ -291,7 +291,6 @@ func errorObj(msg string) js.Value {
 	return res
 }
 
-
 // uploadAuthorization signs locally; no file key or signing secret is exported.
 func uploadAuthorization(this js.Value, args []js.Value) any {
 	if len(args) != 2 || args[0].Type() != js.TypeString || args[1].Type() != js.TypeString {
