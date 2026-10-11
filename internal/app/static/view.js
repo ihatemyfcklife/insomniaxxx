@@ -85,7 +85,7 @@
   let cipher;
   try {
     setStatus("Downloading encrypted payload…");
-    const match = /^\\/d\\/([a-f0-9]{64})\\?cipher=1$/.exec(cipherURL);
+    const match = /^\/d\/([a-f0-9]{64})\?cipher=1$/.exec(cipherURL);
     if (!match) throw new Error("invalid ciphertext path");
     if (window.InsomniaDirect) {
       cipher = await window.InsomniaDirect.downloadEncrypted(match[1]);
