@@ -27,6 +27,14 @@ func main() {
 	js.Global().Set("wasmIsInnovative", js.FuncOf(isInnovative))
 	js.Global().Set("wasmGenerateQR", js.FuncOf(generateQR))
 	js.Global().Set("wasmSHA256", js.FuncOf(hashBytes))
+	js.Global().Set("wasmEncryptStreamStart", js.FuncOf(streamEncryptStart))
+	js.Global().Set("wasmEncryptStreamPush", js.FuncOf(streamEncryptPush))
+	js.Global().Set("wasmEncryptStreamFinish", js.FuncOf(streamEncryptFinish))
+	js.Global().Set("wasmEncryptStreamAbort", js.FuncOf(streamEncryptAbort))
+	js.Global().Set("wasmSHA256Begin", js.FuncOf(incrementalHashBegin))
+	js.Global().Set("wasmSHA256Push", js.FuncOf(incrementalHashPush))
+	js.Global().Set("wasmSHA256End", js.FuncOf(incrementalHashEnd))
+	js.Global().Set("wasmSHA256Abort", js.FuncOf(incrementalHashAbort))
 
 	<-c
 }
