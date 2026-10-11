@@ -28,7 +28,7 @@ export PUBLIC_BASE_URL=https://files.example
 export ONIONGUARD_COOKIE_SECURE=true
 ```
 
-Uploads are sent to every configured public Blossom instance. Defaults target general-purpose public Blossom servers that are used for generic nsite/blob storage. Downloads try the instances in order until the encrypted blob is found. Media-only instances such as the free nostr.build endpoint are intentionally not defaults because they reject opaque `application/octet-stream` blobs.
+New shards are placed on two independent Blossom hosts, rotating their selected pair across up to three configured hosts; the small encrypted manifest is replicated separately. Defaults target general-purpose public Blossom servers used for generic nsite/blob storage. Downloads locate ciphertext shards across the configured instances and reconstruct the file from linearly independent shards. Media-only instances such as the free nostr.build endpoint are intentionally not defaults because they reject opaque `application/octet-stream` blobs.
 
 Every new upload, **regardless of size (including zero bytes)**, is encrypted and split into at least six RLNC shards (K=4 systematic + 2 parity), distributed across at least two independent Blossom relay hosts. With three healthy relays, shard pairs rotate (A+B, B+C, C+A); no relay must store a complete encrypted file. The short encrypted manifest is replicated so recipients can reconstruct from K linearly independent shards. Each shard has two distinct-host receipts. Old monolithic share links remain readable.
 
@@ -116,7 +116,7 @@ The two modes differ in who holds the key and who can read the file:
 What the design does and does not give you:
 
 - **No-JS mode is not zero-knowledge.** The application server generates the key, encrypts the upload, and decrypts the file again to render previews and stream downloads; decrypted copies sit in an ephemeral on-disk cache for a few minutes. Whoever operates (or compromises) the server can read the file and the key.
-- **Zero-Knowledge mode limits the server to ciphertext.** The server still relays the encrypted bytes and can observe their size, hashes, and request timing, but it never receives the plaintext or the key, and the key stays in the browser's URL fragment. During OnionGuard CAPTCHA navigation it may temporarily be held in per-tab sessionStorage, then removed when the link is restored. This protects file content and the key from the server — not from anything else.
+- **Zero-Knowledge mode limits the server to ciphertext.** With successful direct transfers the encrypted file bytes go from browser to Blossom without passing through insomniaXXX; otherwise the server proxies encrypted bytes and can observe their size, hashes, and request timing. In neither case does it receive the plaintext or the share key, which stays in the browser's URL fragment. During OnionGuard CAPTCHA navigation it may temporarily be held in per-tab sessionStorage, then removed when the link is restored. This protects file content and the key from the server — not from anything else.
 - **Neither mode hides metadata.** Your IP address (or Tor circuit), request timing, ciphertext size, and blob hash are visible to the application server and to every Blossom instance that serves the blob. This project makes no anonymity or traffic-analysis guarantee; use Tor or a VPN if that is part of your threat model.
 - **Share links are bearer secrets.** Anyone holding the complete link — key included — can decrypt the file. There are no accounts, hence no access list and no revocation: a link keeps working until the blob disappears from every configured relay, and copies already made by readers cannot be recalled.
 - **Promised:** stored bytes are encrypted with ChaCha20-Poly1305 before they reach Blossom in both modes, and no server-side database of files, keys, or users exists. **Not promised:** that the server operator cannot read files uploaded in no-JS mode, that metadata is hidden, or that any particular deployment's operator is trustworthy — review the code or run your own instance.
@@ -159,7 +159,7 @@ full-sized Go `bytes.Buffer`; direct and proxied uploads can send the Blob
 without first copying it all into one JavaScript array. The fallback path
 remains for a cached/older WASM bundle.
 
-**Important memory limit:** For files over 2 MiB the existing RLNC encoder
+**Important memory limit:** For files of every size the existing RLNC encoder
 still needs the **entire ciphertext in memory** to build the systematic
 and parity shards. This upgrade removes the initial full-size *plaintext*
 buffer in the browser, but **does not yet offer constant-memory RLNC encoding
@@ -196,9 +196,9 @@ backend from the file-byte path **when those relays permit CORS**.
   The full downloaded ciphertext is checked against the expected SHA-256 in
   WASM **before decryption**. Corrupted/non-CORS/slow relay responses fall
   back to `/d/<hash>?cipher=1`, where the server verifies storage too.
-- Both monolithic blobs and RLNC shards/manifests use this path; the
-  server-side No-JS mode remains unchanged and continues to encrypt locally
-  on the server.
+- New uploads use RLNC shards and an encrypted manifest at every size. Legacy
+  monolithic blobs are still downloadable. Server-side No-JS mode encrypts
+  locally on the server and also distributes every new file as RLNC shards.
 - **Privacy trade-off:** direct requests expose a client's IP or Tor exit
   address and encrypted blob hash to the relay. Users can tick **Private relay
   access** to proxy via insomniaXXX instead; this preference is stored only
