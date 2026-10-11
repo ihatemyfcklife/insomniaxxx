@@ -124,6 +124,11 @@
   }
 
   function displayMedia(dataBytes, name, type, size) {
+    // A failed attempt may have moved the proxy checkbox into the loading
+    // panel so it stays accessible. Restore its position once preview succeeds.
+    // Also enforce the layout if an older rendered page placed it above the file.
+    if (box && proxyOptions) box.insertAdjacentElement("afterend", proxyOptions);
+
     // Révéler le contenu de preview et masquer l'animation de chargement
     if (loader) loader.style.display = "none";
     if (content) content.style.display = "";
