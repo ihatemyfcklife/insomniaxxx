@@ -64,6 +64,7 @@ jobs:
           node tests/direct-blossom.test.cjs
           node tests/direct-batch.test.cjs
           node tests/stream-file.test.cjs
+          node tests/load-integrity.test.cjs
 
       - name: Run tests with race detector
         run: go test -race -count=1 ./...
@@ -100,3 +101,4 @@ jobs:
 
       - name: Build production container
         run: docker build --build-arg VERSION="${GITHUB_SHA}" --tag anonblossom:ci .
+
