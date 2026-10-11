@@ -5,7 +5,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 )
 
@@ -66,16 +65,7 @@ func TestEveryTinyFileSizeIsDistributedAndRecoverable(t *testing.T) {
 			for key := range storage["srv1"] {
 				delete(storage["srv1"], key)
 			}
-			html := rec.Body.String()
-			pos := strings.Index(html, "/d/")
-			if pos < 0 {
-				t.Fatal("missing share link")
-			}
-			end := strings.IndexAny(html[pos:], "\" \n<")
-			if end < 0 {
-				t.Fatal("malformed share link")
-			}
-			sharePath := html[pos : pos+end]
+			sharePath := sharePathFromReadyPage(t, rec.Body.String())
 			dlReq := httptest.NewRequest(http.MethodGet, sharePath+"?download=1", nil)
 			dlRec := httptest.NewRecorder()
 			server.handleDownload(dlRec, dlReq)
