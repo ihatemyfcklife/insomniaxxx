@@ -39,8 +39,15 @@ func Configure(maxBodyBytes int64, cookieSecure bool) onionguard.Config {
 	return cfg
 }
 
-func waitRoomHTML(_ *http.Request, retry time.Duration) string {
+func waitRoomHTML(r *http.Request, retry time.Duration) string {
 	seconds := max(1, int(retry.Seconds()))
+	// Manual retry is required if the browser blocks automatic page refreshes.
+	// Preserve the original internal path and query without ever reflecting an
+	// attacker-controlled absolute URL into a navigation.
+	target := "/"
+	if r != nil && r.URL != nil {
+		target = sanitizeChallengeTarget(r.URL.RequestURI())
+	}
 	return fmt.Sprintf(`<!doctype html>
 <html lang="en" data-theme="dark">
 <head>
@@ -54,6 +61,7 @@ func waitRoomHTML(_ *http.Request, retry time.Duration) string {
   <link rel="stylesheet" href="/static/pico.min.css">
   <style>%s</style>
   <script defer src="/static/zk-fragment.js"></script>
+  <script defer src="/static/guard-wait.js"></script>
 </head>
 <body>
   <main class="container">
@@ -61,12 +69,13 @@ func waitRoomHTML(_ *http.Request, retry time.Duration) string {
     <article>
       <h1>Checking</h1>
       <p>Please wait %d seconds...</p>
-      <small class="muted">This page refreshes automatically. Powered by <a href="https://github.com/ihatemyfcklife/onionguard" class="view-relays-link">Onionguard</a>, No JavaScript required.</small>
+      <p class="muted">If your browser blocks automatic refresh, <a href="%s" class="view-relays-link">continue manually</a>.</p>
+      <small class="muted">Powered by <a href="https://github.com/ihatemyfcklife/onionguard" class="view-relays-link">Onionguard</a>. Automatic refresh also works without JavaScript when allowed by the browser.</small>
     </article>
     %s
   </main>
 </body>
-</html>`, seconds, pageTitle, web.PicoThemeCSS, web.LogoHTML(), seconds, web.FooterHTML())
+</html>`, seconds, pageTitle, web.PicoThemeCSS, web.LogoHTML(), seconds, html.EscapeString(target), web.FooterHTML())
 }
 
 func challengeHTML(r *http.Request, challenge *onionguard.CaptchaChallenge, cfg onionguard.CaptchaConfig) string {
