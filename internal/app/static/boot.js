@@ -159,6 +159,24 @@ if (typeof WebAssembly !== "undefined") {
       }
     }
 
+    // Backward-compatible proxy path for installs without the new helper.
+    async function uploadViaProxy(bytes, expectedHash) {
+      const fd = new FormData();
+      fd.append("file", new Blob([bytes], { type: "application/octet-stream" }), "payload.bin");
+      let resp;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        resp = await fetch("/upload-raw", { method: "POST", body: fd });
+        if (resp.ok || ![429, 502, 503, 504].includes(resp.status) || attempt === 2) break;
+        await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+      }
+      if (!resp.ok) throw new Error("Upload failed (HTTP " + resp.status + ")");
+      const info = await resp.json();
+      if (!info || (expectedHash && info.hash !== expectedHash)) {
+        throw new Error("Storage returned a different ciphertext hash");
+      }
+      return { hash: info.hash };
+    }
+
     const RLNC_THRESHOLD = 2 * 1024 * 1024; // 2 Mo
 
     form.onsubmit = async (e) => {
@@ -250,20 +268,13 @@ if (typeof WebAssembly !== "undefined") {
         if (file.size <= RLNC_THRESHOLD) {
           setBtnState("Uploading...");
 
-          const fd = new FormData();
-          fd.append("file", new Blob([enc.ciphertext], { type: "application/octet-stream" }), "payload.bin");
-
-          const resp = await fetch("/upload-raw", { method: "POST", body: fd });
-          if (!resp.ok) {
-            const detail = await resp.text();
-            alert("Upload failed: " + (detail || resp.status));
-            resetBtnState();
-            return;
-          }
-
-          const info = await resp.json();
-          const shareURL = window.location.origin + "/d/" + info.hash + "#" + enc.key;
-          renderReady(file.name, file.size, info.hash, enc.key, shareURL);
+          const hash = typeof wasmSHA256 === "function"
+            ? wasmSHA256(enc.ciphertext) : enc.hash;
+          const result = window.InsomniaDirect
+            ? await window.InsomniaDirect.uploadEncrypted(enc.ciphertext, hash)
+            : await uploadViaProxy(enc.ciphertext, hash);
+          const shareURL = window.location.origin + "/d/" + result.hash + "#" + enc.key;
+          renderReady(file.name, file.size, result.hash, enc.key, shareURL);
           return;
         }
 
@@ -284,39 +295,27 @@ if (typeof WebAssembly !== "undefined") {
         for (let i = 0; i < shards.length; i++) {
           setBtnState(`Uploading shard ${i + 1} of ${shards.length}...`);
 
-          const fd = new FormData();
-          fd.append("file", new Blob([shards[i]], { type: "application/octet-stream" }), `shard_${i}.bin`);
-
-          // Transient 429/502/503 errors must not abandon an otherwise
-          // complete multi-shard upload. Retry a bounded number of times.
-          let sResp;
-          for (let attempt = 0; attempt < 3; attempt++) {
-            sResp = await fetch("/upload-raw", { method: "POST", body: fd });
-            if (sResp.ok || ![429, 502, 503, 504].includes(sResp.status) || attempt === 2) break;
-            await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
-          }
-          if (!sResp.ok) {
-            const detail = await sResp.text();
-            alert(`Upload of shard ${i + 1} failed: ` + (detail || sResp.status));
-            resetBtnState();
-            return;
-          }
-          const sInfo = await sResp.json();
-          shardHashes.push(sInfo.hash);
+          const shardHash = typeof wasmSHA256 === "function"
+            ? wasmSHA256(shards[i]) : null;
+          const result = window.InsomniaDirect
+            ? await window.InsomniaDirect.uploadEncrypted(shards[i], shardHash)
+            : await uploadViaProxy(shards[i], shardHash);
+          shardHashes.push(result.hash);
         }
 
         setBtnState("Publishing manifest...");
 
+        // Manifests may list configured relays, but browser downloads trust
+        // only the app's configured relay list; never fetch arbitrary URLs
+        // embedded by a third party in an encrypted manifest.
         let relays = [];
         try {
-          const rResp = await fetch("/relays?json=1");
+          const rResp = await fetch("/direct-relays");
           if (rResp.ok) {
-            relays = await rResp.json();
+            const info = await rResp.json();
+            if (info && Array.isArray(info.relays)) relays = info.relays;
           }
-        } catch (re) {}
-        if (!relays || relays.length === 0) {
-          relays = [window.location.origin];
-        }
+        } catch (_) {}
 
         const manifest = {
           v: 1,
@@ -347,20 +346,13 @@ if (typeof WebAssembly !== "undefined") {
           return;
         }
 
-        const mFd = new FormData();
-        mFd.append("file", new Blob([encManifest.ciphertext], { type: "application/octet-stream" }), "manifest.bin");
-
-        const mResp = await fetch("/upload-raw", { method: "POST", body: mFd });
-        if (!mResp.ok) {
-          const detail = await mResp.text();
-          alert("Manifest upload failed: " + (detail || mResp.status));
-          resetBtnState();
-          return;
-        }
-
-        const mInfo = await mResp.json();
-        const shareURL = window.location.origin + "/d/" + mInfo.hash + "#" + enc.key;
-        renderReady(file.name, file.size, mInfo.hash, enc.key, shareURL);
+        const manifestHash = typeof wasmSHA256 === "function"
+          ? wasmSHA256(encManifest.ciphertext) : encManifest.hash;
+        const result = window.InsomniaDirect
+          ? await window.InsomniaDirect.uploadEncrypted(encManifest.ciphertext, manifestHash)
+          : await uploadViaProxy(encManifest.ciphertext, manifestHash);
+        const shareURL = window.location.origin + "/d/" + result.hash + "#" + enc.key;
+        renderReady(file.name, file.size, result.hash, enc.key, shareURL);
 
       } catch (err) {
         alert("Upload error: " + err.message);

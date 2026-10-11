@@ -24,6 +24,8 @@ func (a *Server) routes() http.Handler {
 	appMux.HandleFunc("GET /", a.handleHome)
 	appMux.HandleFunc("GET /qr", qr.Handler)
 	appMux.HandleFunc("GET /relays", a.handleRelays)
+	appMux.HandleFunc("GET /direct-relays", a.handleDirectRelays)
+	appMux.HandleFunc("POST /direct-upload-auth", a.handleDirectUploadAuth)
 	appMux.HandleFunc("GET /upload", redirectHome)
 	appMux.HandleFunc("POST /upload", a.handleUpload)
 	appMux.HandleFunc("POST /upload-raw", a.handleUploadRaw)
