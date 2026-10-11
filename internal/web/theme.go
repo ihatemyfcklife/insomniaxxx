@@ -326,12 +326,6 @@ const (
 			color: #fff !important;
 		}
 
-		.btn-action:disabled .btn-loading {
-			visibility: visible !important;
-			opacity: 1 !important;
-			color: #fff !important;
-		}
-
 		.btn-action .btn-loading {
 			display: inline-flex;
 			align-items: center;
@@ -347,6 +341,23 @@ const (
 			visibility: hidden;
 			transition: opacity 0s linear 999s, visibility 0s linear 999s;
 			pointer-events: none;
+		}
+
+		/* Startup-disabled is not loading: the JS upload handler controls this state. */
+		#submitBtn .btn-text,
+		#submitBtn .btn-loading {
+			transition: none;
+		}
+
+		#submitBtn.is-loading .btn-text {
+			visibility: hidden !important;
+			opacity: 0 !important;
+		}
+
+		#submitBtn.is-loading .btn-loading {
+			visibility: visible !important;
+			opacity: 1 !important;
+			color: #fff !important;
 		}
 
 		.btn-spinner {
@@ -377,23 +388,17 @@ const (
 			transition-delay: 0s, 0s !important;
 		}
 
-		/* Bouton d'upload persistant via :focus/:active + délai */
+		/* No-JS upload displays progress only during a valid button press. */
 		#file:valid ~ #submitBtn:active .btn-text,
-		#file:valid ~ #submitBtn:focus .btn-text,
-		form:has(#file:valid) #submitBtn:active .btn-text,
-		form:has(#file:valid) #submitBtn:focus .btn-text {
+		form:has(#file:valid) #submitBtn:active .btn-text {
 			visibility: hidden !important;
 			opacity: 0 !important;
-			transition-delay: 0s, 0s !important;
 		}
 
 		#file:valid ~ #submitBtn:active .btn-loading,
-		#file:valid ~ #submitBtn:focus .btn-loading,
-		form:has(#file:valid) #submitBtn:active .btn-loading,
-		form:has(#file:valid) #submitBtn:focus .btn-loading {
+		form:has(#file:valid) #submitBtn:active .btn-loading {
 			visibility: visible !important;
 			opacity: 1 !important;
-			transition-delay: 0s, 0s !important;
 		}
 
 		/* Styles de la zone de prévisualisation */
