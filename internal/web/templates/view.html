@@ -44,12 +44,17 @@
           <p class="muted"><span id="previewSize">{{.FileSize}}</span> · <code id="previewType">{{.FileType}}</code></p>
         </header>
 
+        <div id="previewFrame" class="preview-frame">
+          <img class="preview-mascot" src="/static/xxx.png" alt="" width="1024" height="1072" draggable="false" aria-hidden="true">
+          <div id="previewFrame" class="preview-frame">
+        <img class="preview-mascot" src="/static/xxx.png" alt="" width="1024" height="1072" draggable="false" aria-hidden="true">
         <article id="previewBox" class="preview-box" role="region" aria-label="Media Preview">
           <div class="no-preview muted">
             <p>No preview available for this file format.</p>
-            <img class="no-preview-cross" src="/static/preview-unavailable.png" alt="" width="128" height="128" loading="lazy">
+            <img class="no-preview-cross" src="/static/preview-unavailable.png" alt="" width="128" height="128" loading="lazy" draggable="false">
           </div>
-        </article>
+          </article>
+        </div>
 
         <div id="zkProxyOptions" class="view-note">
           <label><input id="proxyOnly" type="checkbox"> Use insomniaXXX as a proxy instead of directly connecting to Blossom relays.</label>
@@ -87,10 +92,11 @@
         {{else}}
           <div class="no-preview muted">
             <p>No preview available for this file format.</p>
-            <img class="no-preview-cross" src="/static/preview-unavailable.png" alt="" width="128" height="128" loading="lazy">
+            <img class="no-preview-cross" src="/static/preview-unavailable.png" alt="" width="128" height="128" loading="lazy" draggable="false">
           </div>
         {{end}}
-      </article>
+        </article>
+      </div>
 
       <div class="grid">
         <a role="button" href="{{.DownloadURL}}" class="btn-action"><span class="btn-text">Download ({{.FileSize}})</span><span class="btn-loading"><span class="btn-spinner" aria-hidden="true"></span>Decrypting &amp; Downloading...</span></a>
