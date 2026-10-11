@@ -21,6 +21,11 @@ if (typeof WebAssembly !== "undefined") {
     const form = document.getElementById("uploadForm");
     if (!form) return;
 
+    // The proxy preference is useful only when browser-side encryption runs.
+    // Keep it hidden for disabled JavaScript and failed WASM startup.
+    const proxyOptions = document.getElementById("proxyOptions");
+    if (proxyOptions) proxyOptions.hidden = false;
+
     const status = document.getElementById("wasmStatus");
     if (status) {
       status.textContent = "Zero-Knowledge mode active (local encryption & RLNC)";
