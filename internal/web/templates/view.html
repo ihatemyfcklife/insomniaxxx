@@ -47,11 +47,11 @@
         <div id="previewFrame" class="preview-frame">
           <img class="preview-mascot" src="/static/xxx.png" alt="" width="1024" height="1072" draggable="false" aria-hidden="true">
           <article id="previewBox" class="preview-box" role="region" aria-label="Media Preview">
-          <div class="no-preview muted">
-            <p>No preview available for this file format.</p>
-            <img class="no-preview-cross" src="/static/preview-unavailable.png" alt="" width="128" height="128" loading="lazy" draggable="false">
-          </div>
-        </article>
+            <div class="no-preview muted">
+              <p>No preview available for this file format.</p>
+              <img class="no-preview-cross" src="/static/preview-unavailable.png" alt="" width="128" height="128" loading="lazy" draggable="false">
+            </div>
+          </article>
         </div>
 
         <div id="zkProxyOptions" class="view-note">
@@ -79,23 +79,23 @@
       <div id="previewFrame" class="preview-frame">
         <img class="preview-mascot" src="/static/xxx.png" alt="" width="1024" height="1072" draggable="false" aria-hidden="true">
         <article id="previewBox" class="preview-box" role="region" aria-label="Media Preview">
-        {{if .IsImage}}
-          <img class="preview-media" src="{{.RawURL}}" alt="{{.FileName}}">
-        {{else if .IsVideo}}
-          <video class="preview-media" controls preload="metadata" src="{{.RawURL}}">
-            Your browser does not support the video tag.
-          </video>
-        {{else if .IsAudio}}
-          <audio class="preview-audio" controls preload="metadata" src="{{.RawURL}}">
-            Your browser does not support the audio tag.
-          </audio>
-        {{else}}
-          <div class="no-preview muted">
-            <p>No preview available for this file format.</p>
-            <img class="no-preview-cross" src="/static/preview-unavailable.png" alt="" width="128" height="128" loading="lazy" draggable="false">
-          </div>
-        {{end}}
-      </article>
+          {{if .IsImage}}
+            <img class="preview-media" src="{{.RawURL}}" alt="{{.FileName}}">
+          {{else if .IsVideo}}
+            <video class="preview-media" controls preload="metadata" src="{{.RawURL}}">
+              Your browser does not support the video tag.
+            </video>
+          {{else if .IsAudio}}
+            <audio class="preview-audio" controls preload="metadata" src="{{.RawURL}}">
+              Your browser does not support the audio tag.
+            </audio>
+          {{else}}
+            <div class="no-preview muted">
+              <p>No preview available for this file format.</p>
+              <img class="no-preview-cross" src="/static/preview-unavailable.png" alt="" width="128" height="128" loading="lazy" draggable="false">
+            </div>
+          {{end}}
+        </article>
       </div>
 
       <div class="grid">
