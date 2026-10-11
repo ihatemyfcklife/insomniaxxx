@@ -65,7 +65,7 @@ func (a *Server) acquireUpload(w http.ResponseWriter, r *http.Request) bool {
 	case <-r.Context().Done():
 		return false
 	default:
-		a.renderHomeError(w, "another upload is already in progress; try again in a moment")
+		a.rejectUploadOverload(w)
 		return false
 	}
 }
@@ -86,7 +86,7 @@ func (a *Server) handleUploadRLNC(w http.ResponseWriter, r *http.Request, file i
 		case <-r.Context().Done():
 			return
 		default:
-			a.renderHomeError(w, "a large upload is already in progress; retry shortly")
+			a.rejectUploadOverload(w)
 			return
 		}
 	}
@@ -205,4 +205,12 @@ func (a *Server) handleUploadRLNC(w http.ResponseWriter, r *http.Request, file i
 		BlobHash: manifestHash,
 		Key:      keyText,
 	})
+}
+
+// Overload is transient, not a malformed upload. Both browser and API clients
+// receive a retryable response before any additional expensive work starts.
+func (a *Server) rejectUploadOverload(w http.ResponseWriter) {
+	w.Header().Set("Retry-After", "5")
+	w.Header().Set("Cache-Control", "no-store")
+	http.Error(w, "upload capacity exhausted; retry shortly", http.StatusServiceUnavailable)
 }

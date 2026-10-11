@@ -13,12 +13,14 @@ import (
 
 	"anonblossom/internal/cryptbox"
 	"anonblossom/internal/rlncbox"
+	"anonblossom/internal/uploadauth"
 	qrcode "github.com/skip2/go-qrcode"
 )
 
 func main() {
 	c := make(chan struct{}, 0)
 
+	js.Global().Set("wasmUploadAuthorization", js.FuncOf(uploadAuthorization))
 	js.Global().Set("wasmEncrypt", js.FuncOf(encryptFile))
 	js.Global().Set("wasmEncryptWithKey", js.FuncOf(encryptFileWithKey))
 	js.Global().Set("wasmDecrypt", js.FuncOf(decryptBlob))
@@ -287,4 +289,16 @@ func errorObj(msg string) js.Value {
 	res := js.Global().Get("Object").New()
 	res.Set("error", msg)
 	return res
+}
+
+// uploadAuthorization signs locally; no file key or signing secret is exported.
+func uploadAuthorization(this js.Value, args []js.Value) any {
+	if len(args) != 2 || args[0].Type() != js.TypeString || args[1].Type() != js.TypeString {
+		return errorObj("invalid relay authorization arguments")
+	}
+	token, err := uploadauth.Sign(args[0].String(), args[1].String())
+	if err != nil {
+		return errorObj("relay authorization failed")
+	}
+	return token
 }

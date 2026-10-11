@@ -41,6 +41,7 @@ jobs:
             if [ -n "$unformatted" ]; then
               echo "These changed Go files need gofmt:"
               echo "$unformatted"
+              printf '%s\n' "$files" | xargs gofmt -d
               exit 1
             fi
           fi
@@ -64,6 +65,7 @@ jobs:
           node tests/direct-blossom.test.cjs
           node tests/direct-batch.test.cjs
           node tests/stream-file.test.cjs
+          node tests/load-integrity.test.cjs
 
       - name: Run tests with race detector
         run: go test -race -count=1 ./...
@@ -79,6 +81,7 @@ jobs:
           cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" internal/app/static/wasm_exec.js
           GOOS=js GOARCH=wasm go build -trimpath -ldflags='-s -w' -o internal/app/static/app.wasm ./cmd/wasm
           test -s internal/app/static/app.wasm
+          node tests/wasm-auth-smoke.cjs
 
       - name: Build Linux server binary
         env:

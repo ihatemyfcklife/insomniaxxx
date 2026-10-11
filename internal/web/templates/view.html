@@ -11,10 +11,19 @@
 <body>
   <main class="container">
     {{template "logo" .}}
-    {{if .ZK}}
+    {{if and .ZK .ServerMode}}
+      <h1>Open this file through the onion server</h1>
+      <p>The server will retrieve, reconstruct and decrypt the file. This sends the decryption key to the server.</p>
+      <form method="post" action="/d/{{.BlobHash}}">
+        <label for="onionKey">Decryption key (the part after # in the share link)</label>
+        <input id="onionKey" name="key" type="password" required minlength="43" maxlength="43" autocomplete="off">
+        <button type="submit">Decrypt on the server</button>
+      </form>
+      <p>With JavaScript disabled, paste the key manually. The key is never submitted automatically.</p>
+    {{else if .ZK}}
       <div class="view-note">
         <label><input id="proxyOnly" type="checkbox"> Use insomniaXXX as a proxy instead of directly connecting to Blossom relays.</label>
-        <small class="muted">Private proxy mode is ON by default for new visitors. Uncheck to allow direct downloads, which expose your IP address (or Tor exit) and encrypted blob hash to storage relays. Switching reloads the page without sending the decryption key.</small>
+        <small class="muted">Direct downloads are ON by default and expose your IP address (or Tor exit) and encrypted blob hash to storage relays. Check the box to use the encrypted proxy instead. Switching reloads the page without sending the decryption key.</small>
       </div>
       <!-- ZK loading screen: shown while the manifest, shards, and decryption are loading -->
       <section id="zkLoader" class="zk-loading-container" aria-live="polite">
@@ -86,17 +95,18 @@
       </div>
 
       <div class="view-note">
-        <small class="muted">Decrypted on the fly. No tracking or accounts stored.</small>
+        <small class="muted">Decrypted by the onion server, which can access the plaintext and decryption key.</small>
       </div>
     {{end}}
 
     {{template "footer" .}}
   </main>
-  {{if .ZK}}
+  {{if and .ZK (not .ServerMode)}}
   <script src="/static/wasm_exec.js"></script>
   <script src="/static/direct-blossom.js"></script>
   <script src="/static/view.js" data-cipher="{{.CipherURL}}"></script>
   {{end}}
+  {{if and .ZK .ServerMode}}<script src="/static/onion-key.js"></script>{{end}}
 </body>
 </html>
 {{end}}

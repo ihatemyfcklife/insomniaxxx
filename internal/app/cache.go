@@ -99,6 +99,10 @@ func (c *downloadCache) GetOrDecrypt(
 	key string,
 	decryptFn func() (string, cryptbox.FileMeta, error),
 ) (*os.File, cryptbox.FileMeta, error) {
+retry:
+	if err := ctx.Err(); err != nil {
+		return nil, cryptbox.FileMeta{}, err
+	}
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
@@ -119,9 +123,19 @@ func (c *downloadCache) GetOrDecrypt(
 			return nil, cryptbox.FileMeta{}, entry.err
 		}
 
+		// Serialize opening with eviction: an unlinked cache path must never
+		// turn a valid concurrent request into a spurious storage failure.
+		c.mu.Lock()
+		if c.closed {
+			c.mu.Unlock()
+			return nil, cryptbox.FileMeta{}, errors.New("download cache is closed")
+		}
+		if c.entries[key] != entry {
+			c.mu.Unlock()
+			goto retry
+		}
 		f, err := os.Open(entry.path)
 		if err != nil {
-			c.mu.Lock()
 			if c.entries[key] == entry {
 				delete(c.entries, key)
 				c.usedBytes -= entry.size
@@ -129,6 +143,7 @@ func (c *downloadCache) GetOrDecrypt(
 			c.mu.Unlock()
 			return nil, cryptbox.FileMeta{}, err
 		}
+		c.mu.Unlock()
 		return f, entry.meta, nil
 	}
 
@@ -169,8 +184,17 @@ func (c *downloadCache) GetOrDecrypt(
 		c.mu.Unlock()
 		return nil, cryptbox.FileMeta{}, entry.err
 	}
+	// Pending decryptions are bounded by heavy-download admission, not the
+	// retention quota. Counting them here rejected valid concurrent misses
+	// before any completed entry could be evicted.
+	completed := 0
+	for _, candidate := range c.entries {
+		if candidate.path != "" {
+			completed++
+		}
+	}
 	// Evict completed entries only. Never remove an in-progress decrypt.
-	for len(c.entries) > maxPlainCacheEntries || c.usedBytes+info.Size() > maxPlainCacheBytes {
+	for completed >= maxPlainCacheEntries || c.usedBytes+info.Size() > maxPlainCacheBytes {
 		var oldestKey string
 		var oldest *cacheEntry
 		for candidateKey, candidate := range c.entries {
@@ -195,6 +219,7 @@ func (c *downloadCache) GetOrDecrypt(
 			return nil, cryptbox.FileMeta{}, entry.err
 		}
 		delete(c.entries, oldestKey)
+		completed--
 		c.usedBytes -= oldest.size
 		_ = os.Remove(oldest.path)
 	}

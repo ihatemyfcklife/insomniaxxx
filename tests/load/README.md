@@ -89,3 +89,28 @@ shell history or log complete request URLs.
 Never label a deployment "1,000 transfers ready" without an actual mixed-mode
 run with near-zero errors, checksum validation, measured p95/p99 latency,
 observability, failure recovery and staging security verification.
+
+
+## Integrity checks and generator sizing
+
+Both scripts now hash binary download responses. An HTTP 200 CAPTCHA, truncated
+body, or corrupted payload fails the checks. The mixed test requires the seeded
+No-JS share to contain exactly `K6_NOJS_FILE`; encrypted upload responses must
+return the fixture hash, and every successful No-JS upload is downloaded and
+checked against the plaintext fixture. This adds one download per No-JS upload.
+These HTTP checks still do not exercise the browser WASM direct-to-relay path.
+
+Binary checks retain a whole response in each active VU. Size and distribute
+load generators for this RAM/CPU cost; monitor generator saturation alongside
+server metrics. Metrics omit the URL system tag and use fixed request names to
+avoid placing No-JS keys in metric labels. Do not enable HTTP debug logging or
+publish raw error logs: transport errors can still contain request URLs.
+
+## Network modes
+
+The mixed HTTP script now belongs on the onion/server-processing instance.
+Clearnet rejects plaintext `/upload`; it uses browser WASM plus direct relay
+traffic (or the explicitly selected encrypted proxy). Do not interpret a mixed
+HTTP run against the onion service as a clearnet browser throughput measurement.
+The k6 generator needs a Tor-capable network path for a real `.onion` origin.
+See `docs/NETWORK_MODES.md` for instance separation and legacy-link behavior.

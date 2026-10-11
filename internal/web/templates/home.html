@@ -19,18 +19,21 @@
     <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
       <label for="file">Upload File:</label>
       <input id="file" name="file" type="file" data-max-upload-bytes="{{.MaxUploadBytes}}" required>
-      <button type="submit" id="submitBtn" class="btn-action">
+      <button type="submit" id="submitBtn" class="btn-action" {{if not .ServerMode}}disabled{{end}}>
         <img src="/static/xxx.png" alt="" class="upload-btn-mascot" width="1024" height="1072" draggable="false" aria-hidden="true">
         <span class="btn-text">Upload</span>
         <span class="btn-loading"><span class="btn-spinner" aria-hidden="true"></span>Uploading &amp; Encrypting...</span>
       </button>
-      <small id="wasmStatus" class="muted"></small>
+      <small id="wasmStatus" class="muted">{{if .ServerMode}}Onion mode: the server encrypts and reconstructs files. It can access plaintext and decryption keys.{{else}}Preparing local encryption… Upload stays disabled if it cannot start.{{end}}</small>
+      {{if not .ServerMode}}<noscript><p>Local encryption requires JavaScript and WebAssembly. Use the onion service for server processing without JavaScript.</p></noscript>{{end}}
     </form>
 
+    {{if not .ServerMode}}
     <div class="upload-note">
       <label><input id="proxyOnly" type="checkbox"> Private relay access: route encrypted transfers through insomniaXXX instead of connecting directly to Blossom.</label>
-      <small class="muted">WASM direct transfer can reveal your IP address (or Tor exit address) and blob hashes to the Blossom relays. Encryption keys never leave the browser. Check this option to use the app as a relay proxy instead.</small>
+      <small class="muted">WASM direct transfer can reveal your IP address (or Tor exit address) and blob hashes to the Blossom relays. Encryption keys never leave the browser. Check this option to use the app as a relay proxy instead. Direct failures never enable the proxy automatically.</small>
     </div>
+    {{end}}
     <div class="upload-note">
       <small class="muted">Maximum upload size: {{.MaxUpload}}. Encrypted across public Blossom instances · <a href="/relays" class="view-relays-link">View Relays</a></small>
     </div>
@@ -109,10 +112,12 @@
 
     {{template "footer" .}}
   </main>
+  {{if not .ServerMode}}
   <script src="/static/wasm_exec.js"></script>
   <script src="/static/direct-blossom.js"></script>
   <script src="/static/stream-file.js"></script>
   <script src="/static/boot.js"></script>
+  {{end}}
 </body>
 </html>
 {{end}}

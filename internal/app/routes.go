@@ -31,6 +31,7 @@ func (a *Server) routes() http.Handler {
 	appMux.HandleFunc("POST /upload", a.handleUpload)
 	appMux.HandleFunc("POST /upload-raw", a.handleUploadRaw)
 	appMux.HandleFunc("GET /d/", a.handleDownload)
+	appMux.HandleFunc("POST /d/", a.handleOnionKey)
 	muxWrapper := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h, pattern := appMux.Handler(r)
 		if pattern == "" {
@@ -40,7 +41,7 @@ func (a *Server) routes() http.Handler {
 		h.ServeHTTP(w, r)
 	})
 
-	protectedApp := a.admission.Middleware(muxWrapper)
+	protectedApp := a.networkMode(a.admission.Middleware(muxWrapper))
 
 	// 3. Routeur racine qui aiguille les requêtes
 	root := http.NewServeMux()

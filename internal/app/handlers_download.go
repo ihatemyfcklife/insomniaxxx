@@ -273,12 +273,14 @@ func (a *Server) handleBareBlob(w http.ResponseWriter, r *http.Request, hash str
 
 	w.Header().Set("Cache-Control", "no-store")
 	_ = a.pages.View(w, web.PageData{
-		Title:     pageTitle,
-		FileName:  "Encrypted file",
-		FileSize:  "—",
-		FileType:  "—",
-		ZK:        true,
-		CipherURL: "/d/" + hash + "?cipher=1",
+		ServerMode: a.serverMode(r),
+		Title:      pageTitle,
+		FileName:   "Encrypted file",
+		FileSize:   "—",
+		FileType:   "—",
+		ZK:         true,
+		BlobHash:   hash,
+		CipherURL:  "/d/" + hash + "?cipher=1",
 	})
 }
 

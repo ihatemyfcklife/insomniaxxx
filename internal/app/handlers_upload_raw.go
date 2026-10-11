@@ -1,10 +1,11 @@
 package app
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
-	"os"
 
 	"anonblossom/internal/cryptbox"
 )
@@ -42,27 +43,9 @@ func (a *Server) handleUploadRaw(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	tmp, err := os.CreateTemp("", "anonblossom-raw-*")
-	if err != nil {
-		http.Error(w, "could not prepare the upload", http.StatusServiceUnavailable)
-		return
-	}
-	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
-	defer tmp.Close()
-
-	if _, err := io.Copy(tmp, file); err != nil {
-		http.Error(w, "could not buffer the upload", http.StatusBadRequest)
-		return
-	}
-	if _, err := tmp.Seek(0, io.SeekStart); err != nil {
-		http.Error(w, "could not prepare the upload", http.StatusServiceUnavailable)
-		return
-	}
-
 	// Contrôle de forme : le flux doit commencer par un en-tête cryptbox valide ou un shard RLNC (ABSH).
 	outer := make([]byte, 16)
-	if _, err := io.ReadFull(tmp, outer); err != nil {
+	if _, err := io.ReadFull(file, outer); err != nil {
 		http.Error(w, "payload is not an encrypted share", http.StatusBadRequest)
 		return
 	}
@@ -73,12 +56,21 @@ func (a *Server) handleUploadRaw(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	blobHash, encryptedSize, err := fingerprint(tmp)
+	// multipart.File already implements ReaderAt and ReadSeeker, including
+	// disk-backed multipart sections. Reuse it instead of duplicating the
+	// entire encrypted payload in a second temporary file.
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		http.Error(w, "could not prepare the upload", http.StatusInternalServerError)
+		return
+	}
+	hasher := sha256.New()
+	encryptedSize, err := io.Copy(hasher, file)
 	if err != nil {
 		http.Error(w, "could not fingerprint the upload", http.StatusInternalServerError)
 		return
 	}
-	if err := a.storage.Upload(r.Context(), tmp, encryptedSize, blobHash); err != nil {
+	blobHash := hex.EncodeToString(hasher.Sum(nil))
+	if err := a.storage.Upload(r.Context(), file, encryptedSize, blobHash); err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
