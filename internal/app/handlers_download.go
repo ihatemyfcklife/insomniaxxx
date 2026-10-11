@@ -210,7 +210,7 @@ func safeInlineType(raw, prefix string) bool {
 
 // validRLNCManifest bounds all attacker-controlled parameters before shard downloads/decoding.
 func validRLNCManifest(m rlncbox.Manifest, maxFileSize int64) bool {
-	if m.Version != 1 || m.FileSize <= rlncbox.Threshold || m.FileSize > maxFileSize ||
+	if m.Version != 1 || m.FileSize < 0 || m.FileSize > maxFileSize ||
 		m.EncryptedSize <= 0 || m.EncryptedSize > maxFileSize+(4<<20) ||
 		m.K <= 0 || m.K > 64 || m.N < m.K || m.N > 96 ||
 		len(m.ShardHashes) != m.N || len(m.Relays) > 50 ||

@@ -53,52 +53,10 @@ func (a *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		Size: fileHeader.Size,
 	}
 
-	// Pour les gros fichiers (> 2 Mo) : éparpillement RLNC redondant
-	if meta.Size > rlncbox.Threshold {
-		a.handleUploadRLNC(w, r, file, meta)
-		return
-	}
-
-	tmp, err := os.CreateTemp("", "anonblossom-upload-*")
-	if err != nil {
-		a.renderHomeError(w, "could not prepare encrypted upload")
-		return
-	}
-	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
-	defer tmp.Close()
-
-	key, err := cryptbox.EncryptShare(file, tmp, meta, a.cfg.ChunkSize)
-	if err != nil {
-		a.renderHomeError(w, "encryption failed")
-		return
-	}
-	defer badcrypt.Zeroize(key)
-
-	blobHash, encryptedSize, err := fingerprint(tmp)
-	if err != nil {
-		a.renderHomeError(w, "could not fingerprint encrypted upload")
-		return
-	}
-
-	if err := a.storage.Upload(r.Context(), tmp, encryptedSize, blobHash); err != nil {
-		a.renderHomeError(w, err.Error())
-		return
-	}
-
-	keyText := cryptbox.ShareKeyText(key)
-	shareURL := a.publicBaseURL(r) + "/d/" + blobHash + "/" + keyText
-
-	w.Header().Set("Cache-Control", "no-store")
-	_ = a.pages.Done(w, web.PageData{
-		Title:    pageTitle,
-		ShareURL: shareURL,
-		QRCode:   qr.Img(shareURL),
-		FileName: meta.Name,
-		FileSize: humanBytes(meta.Size),
-		BlobHash: blobHash,
-		Key:      keyText,
-	})
+	// Always publish an encrypted RLNC manifest pointing to dispersed
+	// ciphertext shards. Legacy monolithic shares remain *readable*, but
+	// new No-JS uploads never store a full-file blob on Blossom.
+	a.handleUploadRLNC(w, r, file, meta)
 }
 func (a *Server) acquireUpload(w http.ResponseWriter, r *http.Request) bool {
 	select {
@@ -117,8 +75,8 @@ func (a *Server) releaseUpload() {
 }
 
 func (a *Server) handleUploadRLNC(w http.ResponseWriter, r *http.Request, file io.Reader, meta cryptbox.FileMeta) {
-	// Ciphertext, padded input, shards and wire frames coexist in memory;
-	// serialize the expensive pipeline independently of regular uploads.
+	// Ciphertext, padded input, shards and wire frames coexist in memory.
+	// Limit the memory-heavy path for all uploads, including tiny files.
 	if a.rlncUploads != nil {
 		select {
 		case a.rlncUploads <- struct{}{}:

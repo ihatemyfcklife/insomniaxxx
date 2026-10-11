@@ -30,6 +30,8 @@ export ONIONGUARD_COOKIE_SECURE=true
 
 Uploads are sent to every configured public Blossom instance. Defaults target general-purpose public Blossom servers that are used for generic nsite/blob storage. Downloads try the instances in order until the encrypted blob is found. Media-only instances such as the free nostr.build endpoint are intentionally not defaults because they reject opaque `application/octet-stream` blobs.
 
+Every new upload, **regardless of size (including zero bytes)**, is encrypted and split into at least six RLNC shards (K=4 systematic + 2 parity), distributed across at least two independent Blossom relay hosts. With three healthy relays, shard pairs rotate (A+B, B+C, C+A); no relay must store a complete encrypted file. The short encrypted manifest is replicated so recipients can reconstruct from K linearly independent shards. Each shard has two distinct-host receipts. Old monolithic share links remain readable.
+
 The encrypted file is content-addressed by SHA-256. The share URL contains the blob hash and the random 256-bit share key — in the URL path in no-JS mode, in the URL fragment in Zero-Knowledge mode (see [Frontend](#frontend)).
 
 ## Run
@@ -69,13 +71,13 @@ OnionGuard's wait-room and CAPTCHA pages use the same Pico CSS link and the same
 
 ### No-JS mode (server-side)
 
-The classic HTML form posts the file to the server, which encrypts it with `badcrypt` (ChaCha20-Poly1305 AEAD) and, above the RLNC threshold, additionally splits the ciphertext into RLNC shards before storing it on the configured Blossom instances. The share link carries the key in the URL path: `/d/<hash>/<key>`.
+The classic HTML form posts the file to the server, which encrypts it with `badcrypt` (ChaCha20-Poly1305 AEAD) and **always** splits the ciphertext into RLNC shards before distributing at least two copies of each shard to different configured Blossom hosts. The share link carries the key in the URL path: `/d/<hash>/<key>`.
 
 No JavaScript runs at any point, so this path works in Tor Browser at Safest level and in any browser with scripting disabled. It is also the fallback path: if the Wasm bundle is missing or fails to load, the page silently falls back to the plain HTML form. Because the upload, the preview, and the download are all handled by the server in this mode, the server sees the plaintext file, its name and MIME type, and the share key.
 
 ### Zero-Knowledge mode (browser-side, progressive enhancement)
 
-When WebAssembly is available, `boot.js` loads `app.wasm` and takes over the form: key generation, AEAD encryption, and RLNC encoding all run locally in the browser. Only already-encrypted bytes leave the browser. The app first attempts direct browser-to-Blossom transfers using short-lived hash-scoped Nostr authorizations, and falls back to `POST /upload-raw` when a relay does not support browser CORS uploads. The share link keeps the key in the URL fragment: `/d/<hash>#<key>`. On download, the browser retrieves ciphertext directly from configured relays if the recipient opts into direct relay access, otherwise it uses the app proxy (`?cipher=1`), then decrypts and decodes locally.
+When WebAssembly is available, `boot.js` loads `app.wasm` and takes over the form: key generation, AEAD encryption, and RLNC encoding all run locally in the browser for **all file sizes**. Only already-encrypted bytes leave the browser. The app first attempts direct browser-to-Blossom transfers using short-lived hash-scoped Nostr authorizations, and falls back to `POST /upload-raw` when a relay does not support browser CORS uploads. The share link keeps the key in the URL fragment: `/d/<hash>#<key>`. On download, the browser retrieves ciphertext directly from configured relays if the recipient opts into direct relay access, otherwise it uses the app proxy (`?cipher=1`), then decrypts and decodes locally.
 
 Browsers never send URL fragments to a server, so in this mode the server relays ciphertext only and never receives the plaintext or the share key. This mode requires JavaScript and WebAssembly: it is unavailable in Tor Browser at Safest level, and its guarantees apply only to files that were actually uploaded through this path (files uploaded in no-JS mode were encrypted by the server).
 
@@ -86,6 +88,8 @@ The file and manifest use ChaCha20-Poly1305, **not XChaCha20-Poly1305**. Manifes
 Zero-Knowledge mode generates QR codes locally in WebAssembly. Share links have bearer secrets in URL fragments; never send complete share links to server-side QR endpoints, access logs, analytics, or error reporting. No-JS mode intentionally exposes the key to the server and must be deployed with strict URL log redaction.
 
 ## RLNC availability and limits
+
+Every new share is distributed as RLNC shards even if the original plaintext is tiny. This costs at least six shard transfers and two independent receipts per shard, so small-file uploads have higher overhead than before.
 
 The erasure coding uses binary XOR masks over **GF(2)**, not Reed-Solomon or GF(2^8). It is **not MDS**: for the classic `k=4, n=6` profile, 3 of 15 possible pairs of missing shards cannot be recovered from only four remaining shards. In general, recovery requires at least `k` **linearly independent** shards, not any arbitrary `k` shards. Availability is also subject to Blossom retention and relay uptime; the service cannot promise a durability SLA.
 
