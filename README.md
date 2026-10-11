@@ -16,7 +16,7 @@ Install them with:
 make deps
 ```
 
-Go 1.26.0 or newer is required (see the `go` directive in `go.mod`). The Docker build uses `golang:1.27.0-alpine`, and CI tests with Go 1.27.x to match the production build toolchain.
+Go 1.26.0 or newer is required (see the `go` directive in `go.mod`). The Docker build uses `golang:1.27.2-alpine`, and CI tests with Go 1.27.x to match the production build toolchain.
 
 ## Configuration
 
@@ -75,7 +75,7 @@ No JavaScript runs at any point, so this path works in Tor Browser at Safest lev
 
 ### Zero-Knowledge mode (browser-side, progressive enhancement)
 
-When WebAssembly is available, `boot.js` loads `app.wasm` and takes over the form: key generation, AEAD encryption, and RLNC encoding all run locally in the browser. Only already-encrypted bytes are uploaded (`POST /upload-raw`), which the server checks at the header level (valid cryptbox header or RLNC shard) and forwards to Blossom. The share link keeps the key in the URL fragment: `/d/<hash>#<key>`. On download, the browser fetches the raw ciphertext (`?cipher=1`) and decrypts and decodes it locally.
+When WebAssembly is available, `boot.js` loads `app.wasm` and takes over the form: key generation, AEAD encryption, and RLNC encoding all run locally in the browser. Only already-encrypted bytes leave the browser. The app first attempts direct browser-to-Blossom transfers using short-lived hash-scoped Nostr authorizations, and falls back to `POST /upload-raw` when a relay does not support browser CORS uploads. The share link keeps the key in the URL fragment: `/d/<hash>#<key>`. On download, the browser retrieves ciphertext directly from configured relays if the recipient opts into direct relay access, otherwise it uses the app proxy (`?cipher=1`), then decrypts and decodes locally.
 
 Browsers never send URL fragments to a server, so in this mode the server relays ciphertext only and never receives the plaintext or the share key. This mode requires JavaScript and WebAssembly: it is unavailable in Tor Browser at Safest level, and its guarantees apply only to files that were actually uploaded through this path (files uploaded in no-JS mode were encrypted by the server).
 
