@@ -174,6 +174,11 @@ const (
 			border: 1px solid var(--pico-primary);
 		}
 
+		/* Keep OnionGuard's success link on its own line under the text. */
+		.guard-success-action {
+			margin: 1.25rem 0 0;
+		}
+
 		.share-details {
 			display: flex;
 			flex-direction: column;
