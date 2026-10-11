@@ -90,12 +90,10 @@
     if (window.InsomniaDirect) {
       cipher = await window.InsomniaDirect.downloadEncrypted(match[1]);
     } else {
-      const resp = await fetch(cipherURL);
-      if (!resp.ok) throw new Error("HTTP " + resp.status);
-      cipher = new Uint8Array(await resp.arrayBuffer());
+      throw new Error("Transfer helper unavailable; reload the page.");
     }
   } catch (e) {
-    setStatus("Ciphertext download failed.", true);
+    setStatus(e.message || "Ciphertext download failed.", true);
     return;
   }
 
@@ -215,14 +213,7 @@
             maxBytes: manifest.chunk_size + 40, signal: abortController.signal
           });
         } else {
-          const resp = await fetch(`/d/${hash}?cipher=1`, { signal: abortController.signal });
-          if (!resp.ok) {
-            if (attempt < 2) await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 250));
-            continue;
-          }
-          const headerLength = Number(resp.headers.get("Content-Length"));
-          if (headerLength && headerLength > manifest.chunk_size + 40) return null;
-          buf = new Uint8Array(await resp.arrayBuffer());
+          throw new Error("Transfer helper unavailable; reload the page.");
         }
         if (buf.length !== manifest.chunk_size + 40 ||
             buf[0] !== 0x41 || buf[1] !== 0x42 || buf[2] !== 0x53 || buf[3] !== 0x48 ||

@@ -1,17 +1,21 @@
 // Progressive enhancement: local (Zero-Knowledge) encryption when Wasm loads.
-// Without JS/Wasm (e.g. Tor Browser Safest) the classic POST form is used.
+// This script is served only on clearnet. Failure never enables plaintext POST.
+const localUploadForm = document.getElementById("uploadForm");
+if (localUploadForm) localUploadForm.onsubmit = (event) => event.preventDefault();
 if (typeof WebAssembly !== "undefined") {
   (async function () {
     try {
       const go = new Go();
       const resp = await fetch("/static/app.wasm");
       if (!resp.ok) {
-        return; // Bundle non compilé : repli sur le flux serveur classique.
+        throw new Error("WASM bundle unavailable");
       }
       const result = await WebAssembly.instantiate(await resp.arrayBuffer(), go.importObject);
       go.run(result.instance);
     } catch (e) {
-      return; // En cas d'erreur Wasm, repli silencieux sur le POST HTML.
+      const status = document.getElementById("wasmStatus");
+      if (status) status.textContent = "Local encryption unavailable. Upload is disabled; reload or use the onion service.";
+      return;
     }
 
     const form = document.getElementById("uploadForm");
@@ -34,6 +38,7 @@ if (typeof WebAssembly !== "undefined") {
     // encrypting locally after the user explicitly changes modes.
     let activeMode = "wasm";
     function setArchMode(mode) {
+      if (mode !== "wasm") return;
       activeMode = mode;
       if (mode === "wasm") {
         if (archImg) archImg.src = "/static/architecture-wasm.png";
@@ -63,7 +68,7 @@ if (typeof WebAssembly !== "undefined") {
     }
 
     if (modeToggle && btnNoJS && btnWasm) {
-      modeToggle.style.display = "inline-flex";
+      modeToggle.style.display = "none";
       btnNoJS.addEventListener("click", () => setArchMode("nojs"));
       btnWasm.addEventListener("click", () => setArchMode("wasm"));
       setArchMode("wasm");
@@ -159,26 +164,14 @@ if (typeof WebAssembly !== "undefined") {
       }
     }
 
-    // Backward-compatible proxy path for installs without the new helper.
-    async function uploadViaProxy(bytes, expectedHash) {
-      const fd = new FormData();
-      fd.append("file", new Blob([bytes], { type: "application/octet-stream" }), "payload.bin");
-      let resp;
-      for (let attempt = 0; attempt < 3; attempt++) {
-        resp = await fetch("/upload-raw", { method: "POST", body: fd });
-        if (resp.ok || ![429, 502, 503, 504].includes(resp.status) || attempt === 2) break;
-        await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
-      }
-      if (!resp.ok) throw new Error("Upload failed (HTTP " + resp.status + ")");
-      const info = await resp.json();
-      if (!info || (expectedHash && info.hash !== expectedHash)) {
-        throw new Error("Storage returned a different ciphertext hash");
-      }
-      return { hash: info.hash };
+    const submit = document.getElementById("submitBtn");
+    if (submit) submit.disabled = false;
+    async function uploadViaProxy() {
+      throw new Error("Transfer helper unavailable; reload the page.");
     }
 
      form.onsubmit = async (e) => {
-      if (activeMode === "nojs") return; // Allow normal form submission.
+      // Never submit plaintext to the clearnet server.
       e.preventDefault();
       const input = document.getElementById("file");
       const file = input && input.files && input.files[0];
@@ -370,4 +363,8 @@ if (typeof WebAssembly !== "undefined") {
       }
     };
   })();
+}
+ else {
+  const status = document.getElementById("wasmStatus");
+  if (status) status.textContent = "Local encryption requires WebAssembly. Use the onion service for server processing.";
 }

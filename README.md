@@ -1,5 +1,7 @@
 # insomniaXXX
 
+> Network policy: clearnet processes files locally with an optional encrypted proxy; the `.onion` service processes files on the server. See [network modes and deployment](docs/NETWORK_MODES.md).
+
 Decentralized anonymous file sharing in Go.
 
 ## Dependencies

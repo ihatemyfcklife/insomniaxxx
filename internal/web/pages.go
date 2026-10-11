@@ -60,6 +60,7 @@ type PageData struct {
 	ShareURL       string
 	RawURL         string
 	DownloadURL    string
+	ServerMode     bool
 	ZK             bool
 	CipherURL      string
 	FileName       string

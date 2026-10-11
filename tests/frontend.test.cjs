@@ -35,7 +35,9 @@ async function createPage({size, maxSize}) {
       getElementById(id) { return ids[id] ?? null; },
       querySelector() { return null; }
     },
-    window: {location:{origin:'https://files.example'}},
+    window: {location:{origin:'https://files.example'}, InsomniaDirect:{
+      async uploadEncrypted(bytes, hash) {calls.push({url:'direct-relay-upload'}); return {hash};}
+    }},
     TextEncoder,
     wasmSHA256(){return 'a'.repeat(64);},
     wasmEncodeRLNC(_ciphertext,k,n){
@@ -59,7 +61,7 @@ async function createPage({size, maxSize}) {
   };
   vm.runInNewContext(src,sandbox);
   // Boot initialization awaits the mocked WASM loader.
-  for(let i=0;i<10&&!form.onsubmit;i++) await new Promise(resolve=>setTimeout(resolve,0));
+  for(let i=0;i<10;i++) await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(typeof form.onsubmit,'function','WASM upload handler not installed');
   return {form,ids,calls,alerts,stats:()=>({readCount,encryptCount,qrText})};
 }
@@ -78,7 +80,7 @@ async function createPage({size, maxSize}) {
   classic.ids.btnModeNoJS.listeners.click();
   prevented=0;
   await classic.form.onsubmit({preventDefault(){prevented++;}});
-  assert.equal(prevented,0,'No-JS selection must use native POST');
+  assert.equal(prevented,1,'clearnet must never enable plaintext POST');
   assert(!classic.calls.some(x=>x.url==='/upload-raw'));
 
   const zk=await createPage({size:42,maxSize:19*1024*1024});
@@ -87,7 +89,7 @@ async function createPage({size, maxSize}) {
   assert.equal(prevented,1);
   assert.equal(zk.stats().encryptCount,1);
   assert(zk.stats().qrText?.includes('#secret-fragment'));
-  assert.equal(zk.calls.filter(x=>x.url==='/upload-raw').length, 7,
+  assert.equal(zk.calls.filter(x=>x.url==='direct-relay-upload').length, 7,
     'a tiny file must upload six RLNC shards and one encrypted manifest');
   assert(!zk.calls.some(x=>x.url.includes('/qr?')||x.url.includes('secret-fragment')),
     'share keys must not appear in network URLs');

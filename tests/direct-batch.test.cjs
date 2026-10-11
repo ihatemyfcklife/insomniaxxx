@@ -16,6 +16,7 @@ function harness({invalidBatch=false,proxyOnly=false}={}) {
   const window = {
     location:{origin:'https://files.example',pathname:'/'},
     wasmSHA256:hashBytes,
+    wasmUploadAuthorization: () => invalidBatch ? null : nostr,
     sessionStorage:{getItem(k){return proxyOnly && k==='insomnia:proxy-only'?'1':null;}}
   };
   const fetch = async (url, opts={}) => {
@@ -62,23 +63,22 @@ function harness({invalidBatch=false,proxyOnly=false}={}) {
     (bytes,hash,index)=>h.window.InsomniaDirect.uploadEncrypted(bytes,hash,{shardIndex:index}));
   assert.equal(hashes.length,17);
   assert.deepEqual(Array.from(hashes),shards.map(hashBytes));
-  assert.equal(h.calls.filter(c=>c.url==='/direct-upload-auth/batch').length,3,
-    'seventeen shards must need just three auth calls (8+8+1)');
+  assert.equal(h.calls.filter(c=>c.url==='/direct-upload-auth/batch').length,0,
+    'all relay signatures must be produced locally');
   assert.equal(h.calls.filter(c=>c.url==='/direct-upload-auth').length,0,
     'a successful batch must avoid per-shard signing calls');
   assert.equal(h.calls.filter(c=>c.url==='/upload-raw').length,0);
   assert.equal(h.calls.filter(c=>c.opts.method==='PUT').length,34,
     'two independent relay receipts per encrypted shard');
   const h2=harness({invalidBatch:true});
-  await h2.window.InsomniaStream.uploadShards(shards,
-    (bytes,hash,index)=>h2.window.InsomniaDirect.uploadEncrypted(bytes,hash,{shardIndex:index}));
-  assert.equal(h2.calls.filter(c=>c.url==='/direct-upload-auth').length,17,
-    'older non-batch authorization still works as fallback');
+  await assert.rejects(h2.window.InsomniaStream.uploadShards(shards,
+    (bytes,hash,index)=>h2.window.InsomniaDirect.uploadEncrypted(bytes,hash,{shardIndex:index})), /Direct upload failed/);
+  assert(!h2.calls.some(c => c.url.startsWith('/direct-upload-auth') || c.url === '/upload-raw'));
   const h3=harness({proxyOnly:true});
   await h3.window.InsomniaStream.uploadShards(shards,
     (bytes,hash,index)=>h3.window.InsomniaDirect.uploadEncrypted(bytes,hash,{shardIndex:index}));
   assert.equal(h3.calls.filter(c=>c.url==='/direct-relays'||c.url.startsWith('https://')).length,0,
     'explicit proxy-only mode must never contact storage relays');
   assert.equal(h3.calls.filter(c=>c.url==='/upload-raw').length,17);
-  console.log('Blossom batch auth: 17 shards in 3 requests, 2 replicas, fallback and privacy mode passed');
+  console.log('Blossom batch auth: 17 locally signed shards, 2 replicas, fail-closed and proxy mode passed');
 })().catch(e=>{console.error(e);process.exitCode=1});

@@ -61,7 +61,7 @@ func fingerprint(file *os.File) (hash string, size int64, err error) {
 
 func (a *Server) renderHomeError(w http.ResponseWriter, message string) {
 	w.WriteHeader(http.StatusBadRequest)
-	_ = a.pages.Home(w, web.PageData{Title: pageTitle, Error: cleanError(message)})
+	_ = a.pages.Home(w, web.PageData{Title: pageTitle, Error: cleanError(message), ServerMode: a.serverMode(&http.Request{}), MaxUpload: humanBytes(a.cfg.MaxUploadBytes), MaxUploadBytes: a.cfg.MaxUploadBytes})
 }
 
 func cleanError(message string) string {

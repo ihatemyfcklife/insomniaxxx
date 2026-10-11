@@ -1,5 +1,5 @@
 // Browser WASM transport: go directly to configured Blossom relays when CORS
-// permits, and fall back to insomniaXXX's existing encrypted proxy otherwise.
+// permits. The encrypted app proxy is used only when explicitly selected.
 // NEVER transmit share keys to relay URLs or JSON control endpoints.
 (function (root) {
   "use strict";
@@ -7,6 +7,7 @@
   const MAX_BLOB = 68 * 1024 * 1024;
   const DIRECT_TIMEOUT_MS = 45000;
   let relayList = null;
+  let proxySelection = null;
   const relayHealth = new Map();
   // Ephemeral, bounded grants for the current eight-shard upload group only.
   const preparedGrants = new Map();
@@ -44,33 +45,25 @@
     try {
       const known = await configuredRelays();
       if (known.length < 2) return false;
-      const response = await fetch("/direct-upload-auth/batch", {
-        method: "POST", credentials: "same-origin", redirect: "error",
-        referrerPolicy: "no-referrer", cache: "no-store",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({blobs})
-      });
-      if (!response.ok) return false;
-      const data = await response.json();
-      if (!data || !Array.isArray(data.grants) || data.grants.length !== blobs.length)
-        return false;
-      for (const grant of data.grants) {
-        if (!grant || !seen.has(grant.hash) || preparedGrants.has(grant.hash)) {
-          preparedGrants.clear();
-          return false;
-        }
-        const targets = sanitizeTargets(grant.targets, known);
-        if (targets.length < 2) {
-          preparedGrants.clear();
-          return false;
-        }
-        preparedGrants.set(grant.hash, targets);
+      for (const blob of blobs) {
+        preparedGrants.set(blob.hash, localTargets(known, blob.hash));
       }
       return true;
     } catch (_) {
       preparedGrants.clear();
       return false;
     }
+  }
+
+  function localTargets(known, hash) {
+    if (typeof root.wasmUploadAuthorization !== "function")
+      throw new Error("Local relay signing unavailable; reload the page.");
+    const targets = known.map(url => ({
+      url, authorization: root.wasmUploadAuthorization(url, hash)
+    }));
+    const valid = sanitizeTargets(targets, known);
+    if (valid.length < 2) throw new Error("Local relay signing failed.");
+    return valid;
   }
 
   function clearPreparedGrants() { preparedGrants.clear(); }
@@ -97,21 +90,19 @@
   // A direct relay learns the browser's public network/Tor exit address.
   // Anyone can choose app-proxied transfers for additional relay privacy.
   function proxyOnly() {
+    if (proxySelection !== null) return proxySelection;
     try {
       const saved = root.sessionStorage.getItem("insomnia:proxy-only");
       if (saved !== null) return saved === "1";
     } catch (_) {}
-    // A visitor opening a shared link must be able to decide BEFORE their
-    // browser reveals an IP/Tor exit to storage relays. Start viewers in
-    // proxy mode until they explicitly uncheck the box (which reloads).
-    return !!(root.location && root.location.pathname &&
-      root.location.pathname.startsWith("/d/"));
+    return false; // Clearnet uses direct transfers unless proxy is selected.
   }
 
   const preference = document.getElementById("proxyOnly");
   if (preference) {
     preference.checked = proxyOnly();
     preference.addEventListener("change", () => {
+      proxySelection = preference.checked;
       try {
         root.sessionStorage.setItem("insomnia:proxy-only", preference.checked ? "1" : "0");
       } catch (_) {}
@@ -255,7 +246,8 @@
       observeRelay(relay, false);
     }
     if (signal && signal.aborted) throw new Error("transfer cancelled");
-    // Trusted app proxy remains the interoperable fallback for non-CORS relays.
+    if (!proxyOnly()) throw new Error("Direct download failed. Select the encrypted proxy option to retry.");
+    // Proxying is an explicit transport choice; keys still stay local.
     const proxy = await fetch("/d/" + hash + "?cipher=1", {
       signal, credentials: "same-origin", cache: "no-store",
       referrerPolicy: "no-referrer", redirect: "error"
@@ -300,16 +292,7 @@
       try {
         const known = await configuredRelays();
         if (known.length >= 2) {
-          const response = await fetch("/direct-upload-auth", {
-            method: "POST", credentials: "same-origin", redirect: "error",
-            referrerPolicy: "no-referrer", cache: "no-store",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ hash, size: dataSize })
-          });
-          if (response.ok) {
-            const grant = await response.json();
-            targets = sanitizeTargets(grant && grant.targets, known);
-          }
+          targets = localTargets(known, hash);
         }
       } catch (_) { /* unsupported batch or relay: proxy fallback */ }
     }
@@ -360,7 +343,7 @@
     }
     // A partial one-relay success is not enough: the proxy must still obtain
     // two separate valid receipts before a share link may be published.
-    return proxyUpload(data, hash);
+    throw new Error("Direct upload failed. Select the encrypted proxy option to retry through insomniaXXX.");
   }
 
   root.InsomniaDirect = {

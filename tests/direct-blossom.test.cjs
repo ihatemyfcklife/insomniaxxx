@@ -17,6 +17,7 @@ function harness({ badFirstDownload = false, failedUpload = false, corsFailure =
   const window = {
     location: { origin: 'https://files.example', pathname: view ? '/d/' + hash : '/' },
     wasmSHA256: sha,
+    wasmUploadAuthorization: () => auth,
     wasmSHA256Begin() { incremental = createHash('sha256'); return 55; },
     wasmSHA256Push(id, chunk) {assert.equal(id,55); incremental.update(chunk); return true; },
     wasmSHA256End(id) {assert.equal(id,55); return incremental.digest('hex');},
@@ -74,7 +75,7 @@ function harness({ badFirstDownload = false, failedUpload = false, corsFailure =
     const h = harness();
     assert.deepEqual({...await h.api.uploadEncrypted(bytes, hash)}, {hash, direct:true});
     assert.equal(h.calls.filter(x => x.options.method === 'PUT').length, 2);
-    assert(!h.calls.some(x => x.url === '/upload-raw'));
+    assert(!h.calls.some(x => x.url === '/upload-raw' || x.url.startsWith('/direct-upload-auth')));
     assert(!h.calls.some(x => /fragment|secret/.test(x.url)));
   }
   {
@@ -82,7 +83,7 @@ function harness({ badFirstDownload = false, failedUpload = false, corsFailure =
     const blob = new Blob([bytes], {type: 'application/octet-stream'});
     assert.deepEqual({...await h.api.uploadEncrypted(blob, hash)}, {hash, direct:true},
       'chunk-hashed ciphertext Blobs should upload without full arrayBuffer copies');
-    assert(!h.calls.some(x => x.url === '/upload-raw'));
+    assert(!h.calls.some(x => x.url === '/upload-raw' || x.url.startsWith('/direct-upload-auth')));
   }
   {
     const h = harness({ thirdRelay: true });
@@ -109,14 +110,13 @@ function harness({ badFirstDownload = false, failedUpload = false, corsFailure =
   }
   {
     const h = harness({ failedUpload:true });
-    assert.deepEqual({...await h.api.uploadEncrypted(bytes, hash)}, {hash, direct:false});
-    assert(h.calls.some(x => x.url === '/upload-raw'),
-      'must fall back when fewer than two independent receipts are valid');
+    await assert.rejects(h.api.uploadEncrypted(bytes, hash), /Direct upload failed/);
+    assert(!h.calls.some(x => x.url === '/upload-raw' || x.url.startsWith('/direct-upload-auth')));
   }
   {
     const h = harness({ corsFailure:true });
-    assert.deepEqual({...await h.api.uploadEncrypted(bytes, hash)}, {hash, direct:false});
-    assert(h.calls.some(x => x.url === '/upload-raw'));
+    await assert.rejects(h.api.uploadEncrypted(bytes, hash), /Direct upload failed/);
+    assert(!h.calls.some(x => x.url === '/upload-raw' || x.url.startsWith('/direct-upload-auth')));
   }
   {
     const h = harness({ badFirstDownload:true });
@@ -135,16 +135,15 @@ function harness({ badFirstDownload = false, failedUpload = false, corsFailure =
   }
   {
     const h = harness({ corsFailure:true });
-    const result = await h.api.downloadEncrypted(hash);
-    assert.deepEqual(Array.from(result), Array.from(bytes));
-    assert(h.calls.some(x => x.url === '/d/' + hash + '?cipher=1'));
+    await assert.rejects(h.api.downloadEncrypted(hash), /Direct download failed/);
+    assert(!h.calls.some(x => x.url === '/d/' + hash + '?cipher=1'));
   }
   {
     const h = harness({ view:true });
     const result = await h.api.downloadEncrypted(hash);
     assert.deepEqual(Array.from(result), Array.from(bytes));
-    assert(!h.calls.some(x => x.url.startsWith('https://')),
-      'a first-time share recipient must not contact relays before consenting');
+    assert(h.calls.some(x => x.url.startsWith('https://')),
+      'clearnet viewers default to direct downloads');
   }
   {
     const h = harness({ proxyOnly:true });
@@ -159,5 +158,5 @@ function harness({ badFirstDownload = false, failedUpload = false, corsFailure =
     await assert.rejects(h.api.downloadEncrypted('bad'), /invalid/);
     assert.equal(h.calls.length, 0, 'invalid blob hashes must not initiate network fetches');
   }
-  console.log('Direct Blossom: 2 receipts, corrupted relays, CORS fallback, proxy-only privacy mode, and integrity checks passed');
+  console.log('Direct Blossom: 2 receipts, corrupted relays, explicit CORS failure, proxy-only privacy mode, and integrity checks passed');
 })().catch(err => { console.error(err); process.exitCode = 1; });

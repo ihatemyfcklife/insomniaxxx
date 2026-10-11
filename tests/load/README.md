@@ -105,3 +105,12 @@ load generators for this RAM/CPU cost; monitor generator saturation alongside
 server metrics. Metrics omit the URL system tag and use fixed request names to
 avoid placing No-JS keys in metric labels. Do not enable HTTP debug logging or
 publish raw error logs: transport errors can still contain request URLs.
+
+## Network modes
+
+The mixed HTTP script now belongs on the onion/server-processing instance.
+Clearnet rejects plaintext `/upload`; it uses browser WASM plus direct relay
+traffic (or the explicitly selected encrypted proxy). Do not interpret a mixed
+HTTP run against the onion service as a clearnet browser throughput measurement.
+The k6 generator needs a Tor-capable network path for a real `.onion` origin.
+See `docs/NETWORK_MODES.md` for instance separation and legacy-link behavior.
