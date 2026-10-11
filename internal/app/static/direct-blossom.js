@@ -226,7 +226,7 @@
         maxBytes <= 0 || maxBytes > MAX_BLOB) throw new Error("invalid encrypted download");
     let relays = [];
     if (!proxyOnly()) {
-      try { relays = await configuredRelays(); } catch (_) { /* proxy fallback */ }
+      try { relays = await configuredRelays(); } catch (_) { /* report direct failure below */ }
     }
     for (const relay of rankedRelays(relays)) {
       if (signal && signal.aborted) throw new Error("transfer cancelled");
@@ -294,13 +294,13 @@
         if (known.length >= 2) {
           targets = localTargets(known, hash);
         }
-      } catch (_) { /* unsupported batch or relay: proxy fallback */ }
+      } catch (_) { /* report direct failure below */ }
     }
 
     if (targets.length >= 2) {
       // A shard is stored on two independent hosts, not sent to every relay.
       // Rotate the pair across A+B, B+C, C+A for three hosts. On errors,
-      // use the remaining configured host before the original app proxy.
+      // use the remaining configured host before reporting direct failure.
       const available = targets.filter(target =>
         (relayHealth.get(target.url)?.cooldownUntil || 0) <= Date.now());
       if (available.length >= 2) targets = available;
@@ -341,8 +341,7 @@
       }
       if (successes >= 2) return { hash, direct: true };
     }
-    // A partial one-relay success is not enough: the proxy must still obtain
-    // two separate valid receipts before a share link may be published.
+    // A partial one-relay success is not enough to publish a share link.
     throw new Error("Direct upload failed. Select the encrypted proxy option to retry through insomniaXXX.");
   }
 

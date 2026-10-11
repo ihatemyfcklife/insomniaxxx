@@ -67,6 +67,9 @@ func TestErrorPageOnUnknownRoutes(t *testing.T) {
 	testHash := strings.Repeat("a", 64)
 	testKey := cryptbox.ShareKeyText(make([]byte, 32))
 
+	// Server-side error cases belong to the onion processing instance.
+	server.cfg.PublicBaseURL = "http://service.onion"
+
 	// 4. GET raw query on not found should return plain text error
 	rawReq := httptest.NewRequest(http.MethodGet, "/d/"+testHash+"/"+testKey+"?raw=1", nil)
 	rawRec := httptest.NewRecorder()

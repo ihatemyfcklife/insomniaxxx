@@ -57,7 +57,7 @@
   }
 
   // Cap concurrent network transfers so hundreds of RLNC shards cannot
-  // overwhelm a browser's sockets, the relay network or app proxy fallback.
+  // overwhelm a browser's sockets, the relay network or the explicitly selected app proxy.
   // Keep result ordering independent of request completion ordering.
   async function uploadShards(shards, uploadOne, progress, concurrency = 3) {
     if (!Array.isArray(shards) || shards.length < 1 || shards.length > MAX_SHARDS ||
@@ -67,9 +67,8 @@
     const BATCH_SIZE = 8;
     let completed = 0;
 
-    // Signing one OnionGuard request per shard amplifies server load. Hash
-    // just eight shards, ask for one bounded authorization batch, then run
-    // the network workers. Never pre-sign a full 96-shard transfer: Blossom
+    // Hash and sign just eight shards locally, then run the network workers.
+    // Never pre-sign a full 96-shard transfer: Blossom
     // credentials expire after five minutes and upload links can be slow.
     for (let start = 0; start < shards.length; start += BATCH_SIZE) {
       const end = Math.min(shards.length, start + BATCH_SIZE);
@@ -90,7 +89,7 @@
       const direct = root.InsomniaDirect;
       try {
         if (direct && typeof direct.prepareUploadBatch === "function") {
-          // Non-CORS / old-backend fallback remains in uploadEncrypted.
+          // Credentials are generated locally; proxy mode needs none here.
           await direct.prepareUploadBatch(group);
         }
         let cursor = start;
