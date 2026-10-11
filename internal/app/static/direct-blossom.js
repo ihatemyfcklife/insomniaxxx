@@ -11,8 +11,15 @@
   // A direct relay learns the browser's public network/Tor exit address.
   // Anyone can choose app-proxied transfers for additional relay privacy.
   function proxyOnly() {
-    try { return root.sessionStorage.getItem("insomnia:proxy-only") === "1"; }
-    catch (_) { return false; }
+    try {
+      const saved = root.sessionStorage.getItem("insomnia:proxy-only");
+      if (saved !== null) return saved === "1";
+    } catch (_) {}
+    // A visitor opening a shared link must be able to decide BEFORE their
+    // browser reveals an IP/Tor exit to storage relays. Start viewers in
+    // proxy mode until they explicitly uncheck the box (which reloads).
+    return !!(root.location && root.location.pathname &&
+      root.location.pathname.startsWith("/d/"));
   }
 
   const preference = document.getElementById("proxyOnly");
