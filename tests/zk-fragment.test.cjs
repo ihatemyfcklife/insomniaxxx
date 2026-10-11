@@ -26,4 +26,58 @@ assert(!saved.has('insomnia:pending-zk:'+pathname),'stored key must be removed a
 const noSecret = {window:{location:{pathname,hash:'#not-a-key'}},sessionStorage,Date};
 vm.runInNewContext(gate,noSecret);
 assert(!saved.has('insomnia:pending-zk:'+pathname),'invalid fragments must not be stored');
-console.log('OnionGuard Zero-Knowledge fragment continuity checks passed');
+// The final DOM position matters: server-side template ordering alone cannot
+// catch a checkbox left above the preview by a previous loading/error state.
+async function testProxyPositionAfterDecryption() {
+  const positions = ['proxy', 'header', 'preview', 'buttons'];
+  const checkboxArea = {style:{}};
+  const preview = {
+    insertAdjacentElement(position, element) {
+      assert.equal(position, 'afterend');
+      assert.equal(element, checkboxArea);
+      positions.splice(positions.indexOf('proxy'), 1);
+      positions.splice(positions.indexOf('preview') + 1, 0, 'proxy');
+    },
+    replaceChildren() {}
+  };
+  const content = {style:{display:'none'}};
+  const download = {style:{display:'none'},setAttribute() {}};
+  const elements = {
+    zkLoader:{style:{}}, zkContent:content, zkSpinner:{style:{}},
+    zkVisual:{style:{}}, zkStatusTitle:{style:{}}, zkStatus:{style:{}},
+    previewBox:preview, zkDownload:download, zkProxyOptions:checkboxArea,
+    previewName:{}, previewSize:{}, previewType:{}
+  };
+  const browser = {
+    location:{pathname, hash:'#'+secret, search:''},
+    InsomniaDirect:{async downloadEncrypted() {return new Uint8Array([42]);}}
+  };
+  const sandbox = {
+    window:browser, sessionStorage, Date, Blob, TextDecoder, Uint8Array,
+    URL:{createObjectURL(){return 'blob:recovered-file';}},
+    document:{
+      title:'download · insomniaXXX',
+      currentScript:{getAttribute(){return pathname+'?cipher=1';}},
+      getElementById(id){return elements[id] ?? null;},
+      createElement(){return {appendChild(){},className:'',textContent:''};}
+    },
+    Go:class {constructor(){this.importObject={};} run(){}},
+    WebAssembly:{async instantiate(){return {instance:{}};}},
+    fetch:async()=>({ok:true,async arrayBuffer(){return new ArrayBuffer(0);}}),
+    wasmDecrypt:()=>({
+      data:new Uint8Array([42]), name:'tiny.bin',
+      type:'application/octet-stream', size:1
+    })
+  };
+  vm.runInNewContext(view,sandbox);
+  for (let i=0; i<10 && content.style.display !== ''; i++) {
+    await new Promise(resolve=>setImmediate(resolve));
+  }
+  assert.equal(content.style.display,'','decrypted preview must be revealed');
+  assert.deepEqual(positions,['header','preview','proxy','buttons'],
+    'proxy checkbox must appear directly below preview and above download buttons');
+  assert.equal(download.href,'blob:recovered-file');
+}
+testProxyPositionAfterDecryption().then(()=>{
+  console.log('Zero-Knowledge fragment continuity and proxy placement checks passed');
+}).catch(err=>{console.error(err);process.exitCode=1;});
