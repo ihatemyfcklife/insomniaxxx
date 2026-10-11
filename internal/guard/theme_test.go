@@ -69,6 +69,43 @@ func TestGuardPagesRenderLogo(t *testing.T) {
 	}
 }
 
+func TestWaitRoomRetriesAfterFiveSecondsWithoutJavaScript(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		url string
+		delay time.Duration
+		refresh string
+		link string
+	}{
+		{"plain", "http://example.com/", 5 * time.Second, `content="5"`, `href="/"`},
+		{"fractional-delay", "http://example.com/d/abc?cipher=1&raw=1", 4500 * time.Millisecond, `content="5"`, `href="/d/abc?cipher=1&amp;raw=1"`},
+		{"at-least-one-second", "http://example.com/d/abc", 300 * time.Millisecond, `content="1"`, `href="/d/abc"`},
+		{"no-open-redirect", "http://example.com//evil.example/", 5 * time.Second, `content="5"`, `href="/"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := httptest.NewRequest("GET", tc.url, nil)
+			page := waitRoomHTML(r, tc.delay)
+			for _, required := range []string{
+				`<meta http-equiv="refresh" ` + tc.refresh + `>`,
+				`<script defer src="/static/guard-wait.js"></script>`,
+				`<script defer src="/static/zk-fragment.js"></script>`,
+				`continue manually</a>`,
+				tc.link,
+			} {
+				if !strings.Contains(page, required) {
+					t.Fatalf("wait room missing %q", required)
+				}
+			}
+			if strings.Index(page, "/static/zk-fragment.js") > strings.Index(page, "/static/guard-wait.js") {
+				t.Fatal("ZK key must be stashed before automatic navigation starts")
+			}
+		})
+	}
+	if !strings.Contains(waitRoomHTML(nil, 5*time.Second), `href="/"`) {
+		t.Fatal("wait room without request must have a safe retry path")
+	}
+}
+
 func TestSuccessContinueLinkFollowsVerificationText(t *testing.T) {
 	page := successHTML(nil, "/d/abc?cipher=1")
 	status := strings.Index(page, "Verification passed. Redirecting...")
