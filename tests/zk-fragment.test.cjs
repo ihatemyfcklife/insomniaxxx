@@ -30,6 +30,8 @@ assert(!saved.has('insomnia:pending-zk:'+pathname),'invalid fragments must not b
 // catch a checkbox left above the preview by a previous loading/error state.
 async function testProxyPositionAfterDecryption() {
   const positions = ['proxy', 'header', 'preview', 'buttons'];
+  const fallbackChildren = [];
+  let fallbackRoot = null;
   const checkboxArea = {style:{}};
   const preview = {
     insertAdjacentElement(position, element) {
@@ -38,7 +40,7 @@ async function testProxyPositionAfterDecryption() {
       positions.splice(positions.indexOf('proxy'), 1);
       positions.splice(positions.indexOf('preview') + 1, 0, 'proxy');
     },
-    replaceChildren() {}
+    replaceChildren(node) {fallbackRoot = node;}
   };
   const content = {style:{display:'none'}};
   const download = {style:{display:'none'},setAttribute() {}};
@@ -59,7 +61,10 @@ async function testProxyPositionAfterDecryption() {
       title:'download · insomniaXXX',
       currentScript:{getAttribute(){return pathname+'?cipher=1';}},
       getElementById(id){return elements[id] ?? null;},
-      createElement(){return {appendChild(){},className:'',textContent:''};}
+      createElement(tag) {return {
+        tag, className:'', textContent:'',
+        appendChild(node){fallbackChildren.push(node);}
+      };}
     },
     Go:class {constructor(){this.importObject={};} run(){}},
     WebAssembly:{async instantiate(){return {instance:{}};}},
@@ -77,6 +82,11 @@ async function testProxyPositionAfterDecryption() {
   assert.deepEqual(positions,['header','preview','proxy','buttons'],
     'proxy checkbox must appear directly below preview and above download buttons');
   assert.equal(download.href,'blob:recovered-file');
+  assert.equal(fallbackRoot?.className,'no-preview muted');
+  const cross = fallbackChildren.find(child=>child.tag==='img');
+  assert.equal(cross?.src,'/static/preview-unavailable.png',
+    'browser-decrypted files without preview must show the cross PNG');
+  assert.equal(cross?.className,'no-preview-cross');
 }
 testProxyPositionAfterDecryption().then(()=>{
   console.log('Zero-Knowledge fragment continuity and proxy placement checks passed');
