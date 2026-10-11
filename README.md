@@ -16,7 +16,7 @@ Install them with:
 make deps
 ```
 
-Go 1.26.0 or newer is required (see the `go` directive in `go.mod`). The Docker build uses `golang:1.27.0-alpine`, and CI tests with Go 1.27.x to match the production build toolchain.
+Go 1.26.0 or newer is required (see the `go` directive in `go.mod`). The Docker build uses `golang:1.27.2-alpine`, and CI tests with Go 1.27.x to match the production build toolchain.
 
 ## Configuration
 
@@ -75,7 +75,7 @@ No JavaScript runs at any point, so this path works in Tor Browser at Safest lev
 
 ### Zero-Knowledge mode (browser-side, progressive enhancement)
 
-When WebAssembly is available, `boot.js` loads `app.wasm` and takes over the form: key generation, AEAD encryption, and RLNC encoding all run locally in the browser. Only already-encrypted bytes are uploaded (`POST /upload-raw`), which the server checks at the header level (valid cryptbox header or RLNC shard) and forwards to Blossom. The share link keeps the key in the URL fragment: `/d/<hash>#<key>`. On download, the browser fetches the raw ciphertext (`?cipher=1`) and decrypts and decodes it locally.
+When WebAssembly is available, `boot.js` loads `app.wasm` and takes over the form: key generation, AEAD encryption, and RLNC encoding all run locally in the browser. Only already-encrypted bytes leave the browser. The app first attempts direct browser-to-Blossom transfers using short-lived hash-scoped Nostr authorizations, and falls back to `POST /upload-raw` when a relay does not support browser CORS uploads. The share link keeps the key in the URL fragment: `/d/<hash>#<key>`. On download, the browser retrieves ciphertext directly from configured relays if the recipient opts into direct relay access, otherwise it uses the app proxy (`?cipher=1`), then decrypts and decodes locally.
 
 Browsers never send URL fragments to a server, so in this mode the server relays ciphertext only and never receives the plaintext or the share key. This mode requires JavaScript and WebAssembly: it is unavailable in Tor Browser at Safest level, and its guarantees apply only to files that were actually uploaded through this path (files uploaded in no-JS mode were encrypted by the server).
 
@@ -143,6 +143,35 @@ The encrypted object is intentionally uploaded as `application/octet-stream`: it
 
 When upgrading from an older release, update an existing `.env` too: values already present in `.env` override the new defaults. Replace any old media-only list such as `blossom.nostr.build,blossom.primal.net` with the generic Blossom defaults shown above.
 
+
+## Streaming encryption and bounded RLNC upload workers (WASM)
+
+WASM uploads prefer a streaming-compatible cipher encoder: `File.slice()`
+reads **at most 1 MiB of plaintext per browser operation**, while the Go
+WebAssembly encoder emits individually authenticated packets compatible with
+the existing ABLOBSH1 decryptor. SHA-256 is accumulated incrementally. The
+ciphertext is stored as a browser `Blob` rather than buffered as an extra
+full-sized Go `bytes.Buffer`; direct and proxied uploads can send the Blob
+without first copying it all into one JavaScript array. The fallback path
+remains for a cached/older WASM bundle.
+
+**Important memory limit:** For files over 2 MiB the existing RLNC encoder
+still needs the **entire ciphertext in memory** to build the systematic
+and parity shards. This upgrade removes the initial full-size *plaintext*
+buffer in the browser, but **does not yet offer constant-memory RLNC encoding
+or streaming decryption**, and the browser can still exhaust RAM on large
+files/older mobile devices.
+
+RLNC shard uploads now use **three concurrent workers** (never more than
+four), return hashes in original manifest order regardless of which shard
+finishes first, and refuse to publish a share link when any shard upload
+fails. Every shard and final encrypted manifest still requires two valid
+independent relay receipts (or the existing server proxy fallback).
+
+The browser transport remembers recent CORS/relay failures during the page
+session and prioritizes healthy configured HTTPS relays; it does **not**
+probe unknown relays or transmit share keys. Actual sustained throughput and
+large-browser-memory improvements require staging measurements.
 
 ## Browser-to-Blossom transport (WASM)
 
