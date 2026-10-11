@@ -53,7 +53,7 @@ func TestDirectUploadAuthIsHashBoundAndRejectsCrossOrigin(t *testing.T) {
 		a.handleDirectUploadAuth(w, r)
 		return w
 	}
-	good := authReq(`{"hash":"` + hash + `","size":128}`, "https://files.example")
+	good := authReq(`{"hash":"`+hash+`","size":128}`, "https://files.example")
 	if good.Code != http.StatusOK {
 		t.Fatalf("expected auth, got %d: %s", good.Code, good.Body)
 	}
@@ -125,7 +125,7 @@ func TestDirectUploadAuthIsHashBoundAndRejectsCrossOrigin(t *testing.T) {
 func TestDirectAuthFailsClosedWithoutTwoTargets(t *testing.T) {
 	a := directTestServer()
 	a.cfg.BlossomURLs = []string{"https://one.example"}
-	r := httptest.NewRequest("POST", "/direct-upload-auth", bytes.NewBufferString(`{"hash":"` + strings.Repeat("a", 64) + `","size":256}`))
+	r := httptest.NewRequest("POST", "/direct-upload-auth", bytes.NewBufferString(`{"hash":"`+strings.Repeat("a", 64)+`","size":256}`))
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	a.handleDirectUploadAuth(w, r)
