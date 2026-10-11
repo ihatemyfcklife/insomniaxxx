@@ -16,8 +16,11 @@ func TestParseURLs(t *testing.T) {
 }
 
 func TestDefaultUploadSizeMatchesSupportedCeiling(t *testing.T) {
-	if DefaultMaxUploadBytes != 64<<20 || DefaultMaxUploadBytes != MaxConfigurableUploadBytes {
-		t.Fatalf("default upload size %d must match supported 64 MiB ceiling", DefaultMaxUploadBytes)
+	if DefaultMaxUploadBytes != 64<<20 {
+		t.Fatalf("default upload size = %d, want 64 MiB", DefaultMaxUploadBytes)
+	}
+	if DefaultMaxUploadBytes != MaxConfigurableUploadBytes {
+		t.Fatalf("default upload size %d must match supported ceiling %d", DefaultMaxUploadBytes, MaxConfigurableUploadBytes)
 	}
 	t.Setenv("APP_ENV", "development")
 	t.Setenv("MAX_UPLOAD_BYTES", "")
