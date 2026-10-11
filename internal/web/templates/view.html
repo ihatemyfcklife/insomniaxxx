@@ -21,10 +21,6 @@
       </form>
       <p>With JavaScript disabled, paste the key manually. The key is never submitted automatically.</p>
     {{else if .ZK}}
-      <div class="view-note">
-        <label><input id="proxyOnly" type="checkbox"> Use insomniaXXX as a proxy instead of directly connecting to Blossom relays.</label>
-        <small class="muted">Direct downloads are ON by default and expose your IP address (or Tor exit) and encrypted blob hash to storage relays. Check the box to use the encrypted proxy instead. Switching reloads the page without sending the decryption key.</small>
-      </div>
       <!-- ZK loading screen: shown while the manifest, shards, and decryption are loading -->
       <section id="zkLoader" class="zk-loading-container" aria-live="polite">
         <noscript>
@@ -53,6 +49,11 @@
             <p>No preview available for this file format.</p>
           </div>
         </article>
+
+        <div id="zkProxyOptions" class="view-note">
+          <label><input id="proxyOnly" type="checkbox"> Use insomniaXXX as a proxy instead of directly connecting to Blossom relays.</label>
+          <small class="muted">Direct downloads are ON by default and expose your IP address (or Tor exit) and encrypted blob hash to storage relays. Check the box to use the encrypted proxy instead. Switching reloads the page without sending the decryption key.</small>
+        </div>
 
         <div class="grid">
           <a role="button" id="zkDownload" href="#" style="display:none" class="btn-action"><span class="btn-text">Download</span><span class="btn-loading"><span class="btn-spinner" aria-hidden="true"></span>Downloading...</span></a>

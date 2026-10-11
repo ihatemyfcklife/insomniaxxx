@@ -10,10 +10,18 @@ vm.runInNewContext(gate,{window:{location:{pathname,hash:'#'+secret}},sessionSto
 assert(saved.has('insomnia:pending-zk:'+pathname));
 const view = fs.readFileSync('internal/app/static/view.js','utf8');
 const history = {replaceState(_s,_t,url){assert.equal(url,pathname+'#'+secret);}};
+const proxyOptions={style:{}};
+let errorRecoveryVisible=false;
+const loader={style:{},appendChild(node){errorRecoveryVisible = node === proxyOptions;}};
 const context={window:{location:{pathname,hash:'',search:''},history},sessionStorage,Date,
-  document:{currentScript:{getAttribute(){return '/d/'+hash+'?cipher=1';}},getElementById(){return {style:{},textContent:''};}},
+  document:{currentScript:{getAttribute(){return '/d/'+hash+'?cipher=1';}},getElementById(id){
+    if(id==='zkLoader') return loader;
+    if(id==='zkProxyOptions') return proxyOptions;
+    return {style:{},textContent:''};
+  }},
   WebAssembly: undefined};
 vm.runInNewContext(view,context);
+assert(errorRecoveryVisible,'failed Zero-Knowledge loading must expose the existing proxy checkbox for retry');
 assert(!saved.has('insomnia:pending-zk:'+pathname),'stored key must be removed after restoration');
 const noSecret = {window:{location:{pathname,hash:'#not-a-key'}},sessionStorage,Date};
 vm.runInNewContext(gate,noSecret);
