@@ -61,13 +61,51 @@ func TestUnavailablePreviewShowsCrossInBothDownloadModes(t *testing.T) {
 			}
 			body := rec.Body.String()
 			message := `No preview available for this file format.</p>`
-			image := `<img class="no-preview-cross" src="/static/preview-unavailable.png" alt="" width="128" height="128" loading="lazy">`
+			image := `<img class="no-preview-cross" src="/static/preview-unavailable.png" alt="" width="128" height="128" loading="lazy" draggable="false">`
 			messageAt := strings.Index(body, message)
 			imageAt := strings.Index(body, image)
 			if messageAt < 0 || imageAt <= messageAt {
 				t.Fatal("large no-preview PNG must follow the fallback message")
 			}
 		})
+	}
+}
+
+func TestPreviewMascotAnchoredAbovePreview(t *testing.T) {
+	pages, err := NewPages()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name string
+		data PageData
+	}{
+		{"zero-knowledge", PageData{Title: "insomniaXXX", ZK: true}},
+		{"server-fallback", PageData{Title: "insomniaXXX"}},
+		{"server-image", PageData{Title: "insomniaXXX", IsImage: true}},
+		{"server-video", PageData{Title: "insomniaXXX", IsVideo: true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			if err := pages.View(rec, tc.data); err != nil {
+				t.Fatal(err)
+			}
+			body := rec.Body.String()
+			frame := strings.Index(body, `id="previewFrame" class="preview-frame"`)
+			mascot := strings.Index(body, `<img class="preview-mascot" src="/static/xxx.png" alt="" width="1024" height="1072" draggable="false" aria-hidden="true">`)
+			preview := strings.Index(body, `id="previewBox" class="preview-box"`)
+			if frame < 0 || mascot <= frame || preview <= mascot {
+				t.Fatal("non-draggable mascot must be inside the preview frame, before the media")
+			}
+			if strings.Count(body, `class="preview-mascot"`) != 1 {
+				t.Fatal("expected exactly one decorative mascot per viewer")
+			}
+		})
+	}
+	if !strings.Contains(PicoThemeCSS, ".preview-mascot {") ||
+		!strings.Contains(PicoThemeCSS, "bottom: 100%") ||
+		!strings.Contains(PicoThemeCSS, ".no-preview-cross {") {
+		t.Fatal("preview mascot or cross styles missing")
 	}
 }
 
