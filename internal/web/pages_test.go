@@ -302,6 +302,24 @@ func TestErrorPageRendering(t *testing.T) {
 	_ = os.WriteFile("/tmp/verify_error.html", rec404.Body.Bytes(), 0644)
 }
 
+func TestUploadButtonLoadingNeedsExplicitState(t *testing.T) {
+	if strings.Contains(PicoThemeCSS, ".btn-action:disabled .btn-loading") {
+		t.Fatal("disabled upload button must not display a loading indicator")
+	}
+	for _, selector := range []string{
+		"#submitBtn.is-loading .btn-text",
+		"#submitBtn.is-loading .btn-loading",
+		"#submitBtn .btn-loading",
+	} {
+		if !strings.Contains(PicoThemeCSS, selector) {
+			t.Fatalf("upload CSS missing %q", selector)
+		}
+	}
+	if strings.Contains(PicoThemeCSS, "#submitBtn:focus .btn-loading") {
+		t.Fatal("keyboard focus must not trigger the upload loading indicator")
+	}
+}
+
 func TestNoJSButtonLoadingStates(t *testing.T) {
 	pages, err := NewPages()
 	if err != nil {
