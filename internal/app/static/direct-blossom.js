@@ -8,6 +8,72 @@
   const DIRECT_TIMEOUT_MS = 45000;
   let relayList = null;
   const relayHealth = new Map();
+  // Ephemeral, bounded grants for the current eight-shard upload group only.
+  const preparedGrants = new Map();
+  const MAX_AUTH_BATCH = 8;
+
+  function sanitizeTargets(raw, known) {
+    const targets = [];
+    const seen = new Set();
+    if (!Array.isArray(raw)) return targets;
+    for (const target of raw.slice(0, 3)) {
+      const url = target && allowedRelay(target.url);
+      if (!url || !known.includes(url) ||
+          typeof target.authorization !== "string" ||
+          !/^Nostr [A-Za-z0-9+/=]{50,4096}$/.test(target.authorization) ||
+          seen.has(new URL(url).hostname)) continue;
+      seen.add(new URL(url).hostname);
+      targets.push({url, authorization: target.authorization});
+    }
+    return targets;
+  }
+
+  async function prepareUploadBatch(blobs) {
+    preparedGrants.clear();
+    if (proxyOnly()) return false;
+    if (!Array.isArray(blobs) || blobs.length < 1 || blobs.length > MAX_AUTH_BATCH)
+      throw new Error("invalid upload authorization batch");
+    const seen = new Set();
+    for (const blob of blobs) {
+      if (!blob || !validHash(blob.hash) || seen.has(blob.hash) ||
+          !Number.isSafeInteger(blob.size) || blob.size < 16 || blob.size > MAX_BLOB) {
+        throw new Error("invalid encrypted authorization inventory");
+      }
+      seen.add(blob.hash);
+    }
+    try {
+      const known = await configuredRelays();
+      if (known.length < 2) return false;
+      const response = await fetch("/direct-upload-auth/batch", {
+        method: "POST", credentials: "same-origin", redirect: "error",
+        referrerPolicy: "no-referrer", cache: "no-store",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({blobs})
+      });
+      if (!response.ok) return false;
+      const data = await response.json();
+      if (!data || !Array.isArray(data.grants) || data.grants.length !== blobs.length)
+        return false;
+      for (const grant of data.grants) {
+        if (!grant || !seen.has(grant.hash) || preparedGrants.has(grant.hash)) {
+          preparedGrants.clear();
+          return false;
+        }
+        const targets = sanitizeTargets(grant.targets, known);
+        if (targets.length < 2) {
+          preparedGrants.clear();
+          return false;
+        }
+        preparedGrants.set(grant.hash, targets);
+      }
+      return true;
+    } catch (_) {
+      preparedGrants.clear();
+      return false;
+    }
+  }
+
+  function clearPreparedGrants() { preparedGrants.clear(); }
 
   // Prefer relays that recently returned valid hashes/receipts. Passive
   // health tracking only: never probe another origin without user consent.
@@ -226,32 +292,27 @@
       throw new Error("encrypted upload SHA-256 or size is invalid");
     }
     if (proxyOnly()) return proxyUpload(data, hash);
-    let targets = [];
-    try {
-      const known = await configuredRelays();
-      if (known.length >= 2) {
-        const response = await fetch("/direct-upload-auth", {
-          method: "POST", credentials: "same-origin", redirect: "error",
-          referrerPolicy: "no-referrer", cache: "no-store",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ hash, size: dataSize })
-        });
-        if (response.ok) {
-          const grant = await response.json();
-          if (grant && Array.isArray(grant.targets)) {
-            const seen = new Set();
-            for (const target of grant.targets.slice(0, 3)) {
-              const url = target && allowedRelay(target.url);
-              if (!url || !known.includes(url) ||
-                  !target.authorization || !/^Nostr [A-Za-z0-9+/=]{50,4096}$/.test(target.authorization) ||
-                  seen.has(new URL(url).hostname)) continue;
-              seen.add(new URL(url).hostname);
-              targets.push({ url, authorization: target.authorization });
-            }
+    // Consume a preauthorized grant once. It was bound to this exact hash,
+    // and is never persisted or reused across separate groups.
+    let targets = preparedGrants.get(hash) || [];
+    preparedGrants.delete(hash);
+    if (!targets.length) {
+      try {
+        const known = await configuredRelays();
+        if (known.length >= 2) {
+          const response = await fetch("/direct-upload-auth", {
+            method: "POST", credentials: "same-origin", redirect: "error",
+            referrerPolicy: "no-referrer", cache: "no-store",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ hash, size: dataSize })
+          });
+          if (response.ok) {
+            const grant = await response.json();
+            targets = sanitizeTargets(grant && grant.targets, known);
           }
         }
-      }
-    } catch (_) { /* failed authorization or offline app: proxy fallback */ }
+      } catch (_) { /* unsupported batch or relay: proxy fallback */ }
+    }
 
     if (targets.length >= 2) {
       // A shard is stored on two independent hosts, not sent to every relay.
@@ -302,5 +363,7 @@
     return proxyUpload(data, hash);
   }
 
-  root.InsomniaDirect = { uploadEncrypted, downloadEncrypted };
+  root.InsomniaDirect = {
+    uploadEncrypted, downloadEncrypted, prepareUploadBatch, clearPreparedGrants
+  };
 })(window);

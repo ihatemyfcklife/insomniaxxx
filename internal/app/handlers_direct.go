@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"anonblossom/internal/blossom"
-	"anonblossom/internal/cryptbox"
 )
 
 // directRelayURLs returns only explicitly configured storage origins.
@@ -53,29 +52,11 @@ func (a *Server) handleDirectRelays(w http.ResponseWriter, _ *http.Request) {
 // No plaintext, encryption keys, or blob contents are sent to this endpoint.
 // The OnionGuard gate protects the endpoint and its origin set is fixed.
 func (a *Server) handleDirectUploadAuth(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Cache-Control", "no-store")
-	if origin := r.Header.Get("Origin"); origin != "" {
-		expected := a.cfg.PublicBaseURL
-		if expected == "" {
-			expected = "http://" + r.Host
-			if r.TLS != nil {
-				expected = "https://" + r.Host
-			}
-		}
-		if origin != expected {
-			http.Error(w, "cross-origin authorization denied", http.StatusForbidden)
-			return
-		}
-	}
-	if contentType := r.Header.Get("Content-Type"); !strings.HasPrefix(contentType, "application/json") {
-		http.Error(w, "expected JSON", http.StatusUnsupportedMediaType)
+	if !a.checkDirectAuthRequest(w, r) {
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 512)
-	var req struct {
-		Hash string `json:"hash"`
-		Size int64  `json:"size"`
-	}
+	var req directBlobRequest
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&req); err != nil {
@@ -86,23 +67,23 @@ func (a *Server) handleDirectUploadAuth(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "invalid authorization request", http.StatusBadRequest)
 		return
 	}
-	if !cryptbox.ValidHash(req.Hash) || req.Size < 16 || req.Size > a.cfg.MaxUploadBytes+(1<<20) {
+	if !a.validDirectBlob(req) {
 		http.Error(w, "invalid blob hash or size", http.StatusBadRequest)
 		return
 	}
-	urls := a.directRelayURLs()
-	if len(urls) < 2 {
+	relays := a.directRelayURLs()
+	if len(relays) < 2 {
 		http.Error(w, "two configured Blossom relays are required", http.StatusServiceUnavailable)
 		return
 	}
-	targets := make([]blossom.DirectUploadTarget, 0, len(urls))
-	for _, raw := range urls {
-		cred, err := blossom.UploadAuthorization(raw, req.Hash)
-		if err != nil {
-			http.Error(w, "unable to authorize upload", http.StatusServiceUnavailable)
-			return
-		}
-		targets = append(targets, blossom.DirectUploadTarget{URL: raw, Authorization: cred})
+	if !a.acquireDirectAuth(w) {
+		return
+	}
+	defer a.releaseDirectAuth()
+	targets, err := a.signDirectTargets(relays, req.Hash)
+	if err != nil {
+		http.Error(w, "unable to authorize upload", http.StatusServiceUnavailable)
+		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(struct {

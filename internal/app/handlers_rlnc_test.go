@@ -268,3 +268,50 @@ func TestUploadDownloadLargeFileRLNC(t *testing.T) {
 	_ = hash
 	_ = key
 }
+
+func TestSmallNoJSRLNCDoesNotConsumeLargeFileAdmission(t *testing.T) {
+	server, stored, cleanup := setupTestServer(t)
+	defer cleanup()
+	server.rlncUploads = make(chan struct{}, 1)
+	// Simulate another process already using the only high-memory RLNC slot.
+	server.rlncUploads <- struct{}{}
+
+	postFile := func(data []byte) *httptest.ResponseRecorder {
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+		part, err := writer.CreateFormFile("file", "concurrent.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := part.Write(data); err != nil {
+			t.Fatal(err)
+		}
+		if err := writer.Close(); err != nil {
+			t.Fatal(err)
+		}
+		req := httptest.NewRequest(http.MethodPost, "/upload", body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		rec := httptest.NewRecorder()
+		server.handleUpload(rec, req)
+		return rec
+	}
+	small := postFile(bytes.Repeat([]byte("a"), 100))
+	if small.Code != http.StatusOK {
+		t.Fatalf("small RLNC upload blocked by unrelated heavy upload: %d %s", small.Code, small.Body.String())
+	}
+	shards := make(map[string]bool)
+	for _, replicas := range stored {
+		for hash, blob := range replicas {
+			if bytes.HasPrefix(blob, []byte("ABSH")) {
+				shards[hash] = true
+			}
+		}
+	}
+	if len(shards) != 6 {
+		t.Fatalf("small uploads still need six distributed shards, got %d", len(shards))
+	}
+	large := postFile(bytes.Repeat([]byte("b"), 3<<20))
+	if large.Code == http.StatusOK {
+		t.Fatal("large RLNC upload bypassed occupied high-memory slot")
+	}
+}

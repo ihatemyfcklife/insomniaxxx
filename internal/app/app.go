@@ -17,6 +17,7 @@ type Server struct {
 	pages           *web.Pages
 	uploads         chan struct{}
 	rlncUploads     chan struct{}
+	directAuthSlots chan struct{}
 	downloads       chan struct{}
 	heavyDownloads  chan struct{}
 	cancelDiscovery context.CancelFunc

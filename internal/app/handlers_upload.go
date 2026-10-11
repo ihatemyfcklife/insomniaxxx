@@ -75,9 +75,11 @@ func (a *Server) releaseUpload() {
 }
 
 func (a *Server) handleUploadRLNC(w http.ResponseWriter, r *http.Request, file io.Reader, meta cryptbox.FileMeta) {
-	// Ciphertext, padded input, shards and wire frames coexist in memory.
-	// Limit the memory-heavy path for all uploads, including tiny files.
-	if a.rlncUploads != nil {
+	// Every file is distributed as RLNC shards, but small-file encoding
+	// should not consume a scarce 64 MiB memory-heavy upload slot.
+	// The normal bounded upload semaphore still limits ALL requests; only
+	// large plaintext files need the additional RLNC-memory admission.
+	if a.rlncUploads != nil && meta.Size > rlncbox.Threshold {
 		select {
 		case a.rlncUploads <- struct{}{}:
 			defer func() { <-a.rlncUploads }()

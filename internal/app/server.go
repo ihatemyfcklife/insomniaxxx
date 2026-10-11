@@ -98,6 +98,7 @@ func NewServer(cfg config.Config) (*Server, error) {
 		storage:         storageClient,
 		uploads:         make(chan struct{}, cfg.UploadConcurrency),
 		rlncUploads:     make(chan struct{}, cfg.RLNCUploads),
+		directAuthSlots: make(chan struct{}, 4),
 		downloads:       make(chan struct{}, cipherSlots),
 		heavyDownloads:  make(chan struct{}, cfg.HeavyDownloads),
 		cancelDiscovery: cancelDiscovery,
