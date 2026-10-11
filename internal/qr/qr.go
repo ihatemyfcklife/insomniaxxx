@@ -12,7 +12,7 @@ import (
 // Size est la largeur et hauteur en pixels du PNG généré.
 const Size = 256
 
-// Use the requested muted slate QR foreground (#525F7A) and dark panel (#181C25).
+// Use the requested light slate QR foreground (#C2C7CA) and dark panel (#181C25).
 // This generator is shared by No-JS and WebAssembly so the QR is identical.
 func GeneratePNG(content string) ([]byte, error) {
 	code, err := qrcode.New(content, qrcode.Medium)
@@ -20,7 +20,7 @@ func GeneratePNG(content string) ([]byte, error) {
 		return nil, err
 	}
 	code.BackgroundColor = color.RGBA{R: 0x18, G: 0x1C, B: 0x25, A: 0xFF}
-	code.ForegroundColor = color.RGBA{R: 0x52, G: 0x5F, B: 0x7A, A: 0xFF}
+	code.ForegroundColor = color.RGBA{R: 0xC2, G: 0xC7, B: 0xCA, A: 0xFF}
 	return code.PNG(Size)
 }
 
