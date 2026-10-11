@@ -19,7 +19,7 @@
     <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
       <label for="file">Upload File:</label>
       <input id="file" name="file" type="file" data-max-upload-bytes="{{.MaxUploadBytes}}" required>
-      <button type="submit" id="submitBtn" class="btn-action" {{if not .ServerMode}}disabled{{end}}>
+      <button type="submit" id="submitBtn" class="btn-action{{if .ServerMode}} nojs-upload{{end}}" {{if not .ServerMode}}disabled{{end}}>
         <img src="/static/xxx.png" alt="" class="upload-btn-mascot" width="1024" height="1072" draggable="false" aria-hidden="true">
         <span class="btn-text">Upload</span>
         <span class="btn-loading"><span class="btn-spinner" aria-hidden="true"></span>Uploading &amp; Encrypting...</span>
