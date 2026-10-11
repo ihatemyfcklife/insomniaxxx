@@ -150,7 +150,7 @@ jobs:
             for ($i = 0; $i -lt 90; $i++) {
               if ($process.HasExited) { throw 'make run exited before startup' }
               try {
-                $response = Invoke-WebRequest http://localhost:18080/static/pico.min.css -UseBasicParsing -TimeoutSec 2
+                $response = Invoke-WebRequest http://127.0.0.1:18080/static/pico.min.css -UseBasicParsing -TimeoutSec 2
                 if ($response.StatusCode -eq 200 -and $response.RawContentLength -gt 0) { $ready = $true; break }
               } catch { Start-Sleep -Seconds 1 }
             }
