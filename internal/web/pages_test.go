@@ -229,10 +229,28 @@ func TestAllPagesRenderLogo(t *testing.T) {
 			if !strings.Contains(rec.Body.String(), `class="site-logo"`) {
 				t.Fatalf("%s does not contain site-logo", tc.name)
 			}
-			if !strings.Contains(rec.Body.String(), `File sharing. No accounts. Decentralized relays.`) {
+			if !strings.Contains(rec.Body.String(), `File sharing. No accounts. Decentralized Blossom relays.`) {
 				t.Fatalf("%s does not contain site-tagline", tc.name)
 			}
 		})
+	}
+}
+
+func TestHomeUploadLimitUsesAccentColor(t *testing.T) {
+	pages, err := NewPages()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	if err := pages.Home(rec, PageData{Title: "insomniaXXX", MaxUpload: "64.0 MiB"}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(rec.Body.String(), `Maximum upload size: <span class="upload-limit-value">64.0 MiB</span>.`) {
+		t.Fatal("upload ceiling must be highlighted independently from the accompanying text")
+	}
+	if !strings.Contains(PicoThemeCSS, ".upload-limit-value {") ||
+		!strings.Contains(PicoThemeCSS, "color: var(--pico-primary);") {
+		t.Fatal("upload limit must use the site's primary accent color")
 	}
 }
 
@@ -249,7 +267,7 @@ func TestLogoHTML(t *testing.T) {
 		`draggable="false"`,
 		`<header>`,
 		`class="muted"`,
-		`File sharing. No accounts. Decentralized relays.`,
+		`File sharing. No accounts. Decentralized Blossom relays.`,
 	} {
 		if !strings.Contains(html, needle) {
 			t.Fatalf("LogoHTML missing %q", needle)
