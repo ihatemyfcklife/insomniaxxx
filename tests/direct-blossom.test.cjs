@@ -55,7 +55,7 @@ function harness({ badFirstDownload = false, failedUpload = false, corsFailure =
     }
     throw new Error('Unexpected request ' + url);
   };
-  const context = {window, fetch, URL, Response, Uint8Array, TextDecoder, Blob,
+  const context = {window, fetch, document: {getElementById() { return null; }}, URL, Response, Uint8Array, TextDecoder, Blob,
     FormData, AbortController, setTimeout, clearTimeout, console};
   vm.runInNewContext(source, context);
   return { calls, api: window.InsomniaDirect };
