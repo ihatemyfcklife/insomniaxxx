@@ -12,6 +12,18 @@ import (
 // Size est la largeur et hauteur en pixels du PNG généré.
 const Size = 256
 
+// Match the dark site's --pico-primary (#F869BF) and QR panel (#181C25).
+// This generator is shared by No-JS and WebAssembly so the QR is identical.
+func GeneratePNG(content string) ([]byte, error) {
+	code, err := qrcode.New(content, qrcode.Medium)
+	if err != nil {
+		return nil, err
+	}
+	code.BackgroundColor = color.RGBA{R: 0x18, G: 0x1C, B: 0x25, A: 0xFF}
+	code.ForegroundColor = color.RGBA{R: 0xF8, G: 0x69, B: 0xBF, A: 0xFF}
+	return code.PNG(Size)
+}
+
 // Handler sert le code QR au format PNG avec les couleurs du thème sombre.
 func Handler(w http.ResponseWriter, r *http.Request) {
 	data := r.URL.Query().Get("data")
@@ -20,17 +32,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	code, err := qrcode.New(data, qrcode.Medium)
-	if err != nil {
-		http.Error(w, "could not generate QR code", http.StatusInternalServerError)
-		return
-	}
-
-	// Couleurs assorties à l'interface sombre
-	code.BackgroundColor = color.RGBA{R: 0x18, G: 0x1C, B: 0x25, A: 0xFF} // #181C25
-	code.ForegroundColor = color.RGBA{R: 0xC2, G: 0xC7, B: 0xD0, A: 0xFF} // #C2C7D0
-
-	png, err := code.PNG(Size)
+	png, err := GeneratePNG(data)
 	if err != nil {
 		http.Error(w, "could not encode PNG", http.StatusInternalServerError)
 		return
@@ -45,7 +47,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 func Img(content string) template.HTML {
 	// The share link contains a bearer key; keep it out of HTTP request URLs.
 	// Render a PNG data URI so even the No-JS share page never calls /qr?data=.
-	png, err := qrcode.Encode(content, qrcode.Medium, Size)
+	png, err := GeneratePNG(content)
 	if err != nil {
 		return ""
 	}
