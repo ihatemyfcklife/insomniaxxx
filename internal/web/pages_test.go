@@ -497,7 +497,7 @@ func TestNoJSTorPrivacyNoticeRecommendsWASM(t *testing.T) {
 	}
 	notice := body[start : start+end]
 	for _, required := range []string{
-		"Tor / No-JS works without JavaScript.",
+		"Tor mode works without JavaScript.",
 		"Files are encrypted before reaching Blossom",
 		"this server handles the file and its key",
 		"we recommend Zero-Knowledge (WASM) when available",
@@ -517,8 +517,48 @@ func TestNoJSTorPrivacyNoticeRecommendsWASM(t *testing.T) {
 	if err := pages.Home(clearnet, PageData{Title: "insomniaXXX"}); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(clearnet.Body.String(), "Tor / No-JS works without JavaScript.") {
+	if strings.Contains(clearnet.Body.String(), "Tor mode works without JavaScript.") {
 		t.Fatal("server-side encryption notice must appear only in No-JS Tor mode")
+	}
+}
+
+func TestClearnetProxyOptionsHiddenUntilWASMReady(t *testing.T) {
+	pages, err := NewPages()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	clearnet := httptest.NewRecorder()
+	if err := pages.Home(clearnet, PageData{Title: "insomniaXXX"}); err != nil {
+		t.Fatal(err)
+	}
+	body := clearnet.Body.String()
+	const startTag = `<div class="upload-note" id="proxyOptions" hidden>`
+	start := strings.Index(body, startTag)
+	if start < 0 {
+		t.Fatal("clearnet proxy options must start hidden for browsers without JavaScript")
+	}
+	end := strings.Index(body[start:], "</div>")
+	if end < 0 {
+		t.Fatal("clearnet proxy options container is unclosed")
+	}
+	options := body[start : start+end]
+	for _, required := range []string{
+		`<input id="proxyOnly" type="checkbox">`,
+		"Private relay access:",
+		"WASM direct transfer can reveal your IP address",
+	} {
+		if !strings.Contains(options, required) {
+			t.Fatalf("both the clearnet checkbox and its description must be hidden together: %q", required)
+		}
+	}
+
+	onion := httptest.NewRecorder()
+	if err := pages.Home(onion, PageData{Title: "insomniaXXX", ServerMode: true}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(onion.Body.String(), `id="proxyOptions"`) {
+		t.Fatal("No-JS Tor mode must not show browser-only proxy options")
 	}
 }
 
