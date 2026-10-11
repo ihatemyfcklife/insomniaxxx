@@ -46,14 +46,12 @@
 
         <div id="previewFrame" class="preview-frame">
           <img class="preview-mascot" src="/static/xxx.png" alt="" width="1024" height="1072" draggable="false" aria-hidden="true">
-          <div id="previewFrame" class="preview-frame">
-        <img class="preview-mascot" src="/static/xxx.png" alt="" width="1024" height="1072" draggable="false" aria-hidden="true">
-        <article id="previewBox" class="preview-box" role="region" aria-label="Media Preview">
+          <article id="previewBox" class="preview-box" role="region" aria-label="Media Preview">
           <div class="no-preview muted">
             <p>No preview available for this file format.</p>
             <img class="no-preview-cross" src="/static/preview-unavailable.png" alt="" width="128" height="128" loading="lazy" draggable="false">
           </div>
-          </article>
+        </article>
         </div>
 
         <div id="zkProxyOptions" class="view-note">
@@ -78,7 +76,9 @@
         <p class="muted"><span id="previewSize">{{.FileSize}}</span> · <code id="previewType">{{.FileType}}</code></p>
       </header>
 
-      <article id="previewBox" class="preview-box" role="region" aria-label="Media Preview">
+      <div id="previewFrame" class="preview-frame">
+        <img class="preview-mascot" src="/static/xxx.png" alt="" width="1024" height="1072" draggable="false" aria-hidden="true">
+        <article id="previewBox" class="preview-box" role="region" aria-label="Media Preview">
         {{if .IsImage}}
           <img class="preview-media" src="{{.RawURL}}" alt="{{.FileName}}">
         {{else if .IsVideo}}
@@ -95,7 +95,7 @@
             <img class="no-preview-cross" src="/static/preview-unavailable.png" alt="" width="128" height="128" loading="lazy" draggable="false">
           </div>
         {{end}}
-        </article>
+      </article>
       </div>
 
       <div class="grid">
