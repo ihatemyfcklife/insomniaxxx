@@ -85,12 +85,15 @@
   let cipher;
   try {
     setStatus("Downloading encrypted payload…");
-    const resp = await fetch(cipherURL);
-    if (!resp.ok) {
-      setStatus("Ciphertext unavailable (HTTP " + resp.status + ").", true);
-      return;
+    const match = /^\/d\/([a-f0-9]{64})\?cipher=1$/.exec(cipherURL);
+    if (!match) throw new Error("invalid ciphertext path");
+    if (window.InsomniaDirect) {
+      cipher = await window.InsomniaDirect.downloadEncrypted(match[1]);
+    } else {
+      const resp = await fetch(cipherURL);
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      cipher = new Uint8Array(await resp.arrayBuffer());
     }
-    cipher = new Uint8Array(await resp.arrayBuffer());
   } catch (e) {
     setStatus("Ciphertext download failed.", true);
     return;
@@ -197,9 +200,8 @@
     return;
   }
 
-  // Use the application proxy (which validates public relays) rather than
-  // cross-origin requests with unpredictable CORS policy. The server has two
-  // download slots, so do not launch N shard fetches concurrently.
+  // Prefer verified direct CORS downloads to the app's configured
+  // relays. The same-origin proxy remains the integrity-checked fallback.
   const abortController = new AbortController();
   const acceptedShards = [];
   let nextShard = 0;
@@ -207,14 +209,21 @@
   async function fetchShard(hash) {
     for (let attempt = 0; attempt < 3 && !abortController.signal.aborted; attempt++) {
       try {
-        const resp = await fetch(`/d/${hash}?cipher=1`, { signal: abortController.signal });
-        if (!resp.ok) {
-          if (attempt < 2) await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 250));
-          continue;
+        let buf;
+        if (window.InsomniaDirect) {
+          buf = await window.InsomniaDirect.downloadEncrypted(hash, {
+            maxBytes: manifest.chunk_size + 40, signal: abortController.signal
+          });
+        } else {
+          const resp = await fetch(`/d/${hash}?cipher=1`, { signal: abortController.signal });
+          if (!resp.ok) {
+            if (attempt < 2) await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 250));
+            continue;
+          }
+          const headerLength = Number(resp.headers.get("Content-Length"));
+          if (headerLength && headerLength > manifest.chunk_size + 40) return null;
+          buf = new Uint8Array(await resp.arrayBuffer());
         }
-        const headerLength = Number(resp.headers.get("Content-Length"));
-        if (headerLength && headerLength > manifest.chunk_size + 40) return null;
-        const buf = new Uint8Array(await resp.arrayBuffer());
         if (buf.length !== manifest.chunk_size + 40 ||
             buf[0] !== 0x41 || buf[1] !== 0x42 || buf[2] !== 0x53 || buf[3] !== 0x48 ||
             typeof wasmSHA256 !== "function" || wasmSHA256(buf) !== hash) {

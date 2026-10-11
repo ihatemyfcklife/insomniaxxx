@@ -144,6 +144,56 @@ The encrypted object is intentionally uploaded as `application/octet-stream`: it
 When upgrading from an older release, update an existing `.env` too: values already present in `.env` override the new defaults. Replace any old media-only list such as `blossom.nostr.build,blossom.primal.net` with the generic Blossom defaults shown above.
 
 
+## Browser-to-Blossom transport (WASM)
+
+With JavaScript/WebAssembly enabled, insomniaXXX first attempts to send and
+retrieve **ciphertext only** directly between the browser and up to three
+explicitly configured HTTPS Blossom relays. This removes the main application
+backend from the file-byte path **when those relays permit CORS**.
+
+- The browser encrypts and computes SHA-256 locally. `POST /direct-upload-auth`
+  returns per-relay, single-hash **short-lived Nostr BUD-02 authorizations**.
+  No ciphertext bytes, plaintext or share keys are sent to this endpoint.
+- The browser PUTs encrypted bytes to the relays using its own network
+  connection. At least **two distinct hosts must return a matching SHA-256
+  receipt** before a share link is produced; otherwise the browser retries
+  via the existing same-origin `/upload-raw` proxy.
+- Browser downloads try `GET https://<configured-relay>/<hash>` with
+  `credentials: omit`, disabled redirects and `referrerPolicy: no-referrer`.
+  The full downloaded ciphertext is checked against the expected SHA-256 in
+  WASM **before decryption**. Corrupted/non-CORS/slow relay responses fall
+  back to `/d/<hash>?cipher=1`, where the server verifies storage too.
+- Both monolithic blobs and RLNC shards/manifests use this path; the
+  server-side No-JS mode remains unchanged and continues to encrypt locally
+  on the server.
+- **Privacy trade-off:** direct requests expose a client's IP or Tor exit
+  address and encrypted blob hash to the relay. Users can tick **Private relay
+  access** to proxy via insomniaXXX instead; this preference is stored only
+  in same-tab `sessionStorage`. **New recipients opening a share link
+  default to proxy mode**, so a direct request cannot disclose an address
+  before consent; they can uncheck to opt in to direct downloads. Uploaders
+  see the disclosure before submitting a WASM upload (direct by default).
+  The browser-to-relay link never contains the share/decryption key. Users
+  needing the strongest anonymity should choose the proxy, or use Tor and
+  trusted relays.
+- Relay support is not guaranteed: **CORS must allow the site origin, PUT/GET,
+  `Authorization`, `X-SHA-256`, and `Content-Type`**; relays must accept
+  hash-scoped ephemeral BUD-02 upload authorizations and expose upload JSON
+  receipts. Ordinary public relays may refuse some or all of these requests,
+  in which case files still transfer through insomniaXXX.
+- `/direct-relays` deliberately returns configured seeds only, never arbitrary
+  third-party URLs embedded in a manifest or discovered via Nostr. Use at
+  least **two distinct trusted HTTPS relay hosts** in production.
+- Transport authorization goes through OnionGuard. Rate-limit that endpoint
+  at the reverse proxy; do not log its Authorization-bearing response.
+  Direct relay traffic bypasses your reverse-proxy rate limits and relies on
+  the storage relays' own restrictions.
+
+This feature reduces backend transfer saturation **only for successful direct
+traffic**. It is not a guarantee of 1,000 simultaneously working transfers:
+browser memory, relay quotas and bandwidth, CORS compatibility and load
+testing remain required.
+
 ## Scaling toward 1,000 simultaneous file transfers
 
 The server now applies **independent admission limits** to:
