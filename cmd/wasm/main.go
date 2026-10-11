@@ -12,9 +12,9 @@ import (
 	"github.com/ihatemyfcklife/badrlnc"
 
 	"anonblossom/internal/cryptbox"
+	"anonblossom/internal/qr"
 	"anonblossom/internal/rlncbox"
 	"anonblossom/internal/uploadauth"
-	qrcode "github.com/skip2/go-qrcode"
 )
 
 func main() {
@@ -265,7 +265,7 @@ func generateQR(this js.Value, args []js.Value) any {
 	if len(payload) == 0 || len(payload) > 4096 {
 		return errorObj("invalid QR value")
 	}
-	png, err := qrcode.Encode(payload, qrcode.Medium, 256)
+	png, err := qr.GeneratePNG(payload)
 	if err != nil {
 		return errorObj("QR generation failed")
 	}
