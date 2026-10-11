@@ -487,21 +487,27 @@ func TestNoJSTorPrivacyNoticeRecommendsWASM(t *testing.T) {
 		t.Fatal(err)
 	}
 	body := onion.Body.String()
+	start := strings.Index(body, `<small id="wasmStatus" class="muted">`)
+	if start < 0 {
+		t.Fatal("No-JS status notice is missing")
+	}
+	end := strings.Index(body[start:], "</small>")
+	if end < 0 {
+		t.Fatal("No-JS status notice is not closed")
+	}
+	notice := body[start : start+end]
 	for _, required := range []string{
-		`id="wasmStatus" class="muted"`,
-		"Privacy warning: No-JS / Tor is not Zero-Knowledge.",
-		"Your original file is sent to the insomniaXXX server",
-		"generates the decryption key",
-		"can read its contents during upload, preview and download",
-		"server or proxy logs could expose it",
-		"we recommend Zero-Knowledge (WASM) mode",
-		"with JavaScript enabled",
-		"keeping the plaintext and key away from this server",
-		"Private relay access",
+		"Tor / No-JS works without JavaScript.",
+		"Files are encrypted before reaching Blossom",
+		"this server handles the file and its key",
+		"we recommend Zero-Knowledge (WASM) when available",
 	} {
-		if !strings.Contains(body, required) {
-			t.Fatalf("No-JS Tor notice missing required privacy information: %q", required)
+		if !strings.Contains(notice, required) {
+			t.Fatalf("No-JS Tor notice missing %q", required)
 		}
+	}
+	if len(notice) > 260 || strings.Contains(notice, "Privacy warning") {
+		t.Fatal("No-JS Tor message must stay concise and reassuring")
 	}
 	if strings.Contains(body, "/static/boot.js") {
 		t.Fatal("No-JS Tor notice must work without JavaScript")
@@ -511,8 +517,8 @@ func TestNoJSTorPrivacyNoticeRecommendsWASM(t *testing.T) {
 	if err := pages.Home(clearnet, PageData{Title: "insomniaXXX"}); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(clearnet.Body.String(), "Privacy warning: No-JS / Tor") {
-		t.Fatal("server-side encryption warning must appear only in No-JS Tor mode")
+	if strings.Contains(clearnet.Body.String(), "Tor / No-JS works without JavaScript.") {
+		t.Fatal("server-side encryption notice must appear only in No-JS Tor mode")
 	}
 }
 
