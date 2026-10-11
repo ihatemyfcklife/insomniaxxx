@@ -205,6 +205,7 @@ if (typeof WebAssembly !== "undefined") {
       function setBtnState(text) {
         if (!submitBtn) return;
         ensureMascot();
+        submitBtn.classList.add("is-loading");
         const bt = submitBtn.querySelector(".btn-text");
         if (bt) { bt.style.visibility = "hidden"; bt.style.opacity = "0"; }
         let loading = submitBtn.querySelector(".btn-loading");
@@ -226,6 +227,7 @@ if (typeof WebAssembly !== "undefined") {
       function resetBtnState() {
         if (!submitBtn) return;
         ensureMascot();
+        submitBtn.classList.remove("is-loading");
         submitBtn.disabled = false;
         const bt = submitBtn.querySelector(".btn-text");
         if (bt) { bt.style.visibility = ""; bt.style.opacity = ""; }
