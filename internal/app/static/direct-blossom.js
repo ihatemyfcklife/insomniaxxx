@@ -67,8 +67,8 @@
           chunks.push(value);
         }
       } finally {
-        reader.releaseLock();
         if (total > limit) await reader.cancel().catch(() => {});
+        reader.releaseLock();
       }
       const result = new Uint8Array(total);
       let offset = 0;
@@ -84,7 +84,7 @@
     return bytes;
   }
 
-  async function timedFetch(url, options, externalSignal) {
+  async function timedFetch(url, options, externalSignal, consumeResponse) {
     const controller = new AbortController();
     const relayAbort = () => controller.abort();
     if (externalSignal) {
@@ -93,7 +93,8 @@
     }
     const timer = setTimeout(() => controller.abort(), DIRECT_TIMEOUT_MS);
     try {
-      return await fetch(url, { ...options, signal: controller.signal });
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      return await consumeResponse(response);
     } finally {
       clearTimeout(timer);
       if (externalSignal) externalSignal.removeEventListener("abort", relayAbort);
@@ -108,13 +109,11 @@
     for (const relay of relays) {
       if (signal && signal.aborted) throw new Error("transfer cancelled");
       try {
-        const response = await timedFetch(relay + "/" + hash, {
+        const data = await timedFetch(relay + "/" + hash, {
           method: "GET", mode: "cors", credentials: "omit",
           referrerPolicy: "no-referrer", redirect: "error", cache: "no-store"
-        }, signal);
-        if (!response.ok) continue;
-        const data = await boundedRead(response, maxBytes);
-        if (localHashMatches(data, hash)) return data;
+        }, signal, response => response.ok ? boundedRead(response, maxBytes) : null);
+        if (data && localHashMatches(data, hash)) return data;
       } catch (_) {
         if (signal && signal.aborted) throw new Error("transfer cancelled");
         // Unavailable relay, invalid bytes, CORS or timeout: try next target.
@@ -188,7 +187,7 @@
       // insomniaXXX in the actual upload body. Never pass cookies/keys.
       const results = await Promise.all(targets.map(async target => {
         try {
-          const response = await timedFetch(target.url + "/upload", {
+          const receiptBytes = await timedFetch(target.url + "/upload", {
             method: "PUT", mode: "cors", credentials: "omit",
             referrerPolicy: "no-referrer", redirect: "error",
             headers: {
@@ -196,9 +195,8 @@
               "X-SHA-256": hash,
               "Content-Type": "application/octet-stream"
             }, body: data
-          });
-          if (!response.ok) return false;
-          const receiptBytes = await boundedRead(response, 4096);
+          }, null, response => response.ok ? boundedRead(response, 4096) : null);
+          if (!receiptBytes) return false;
           const receipt = JSON.parse(new TextDecoder().decode(receiptBytes));
           return !!receipt && typeof receipt.sha256 === "string" &&
             receipt.sha256.toLowerCase() === hash &&
