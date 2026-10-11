@@ -476,6 +476,48 @@ func TestZKDownloadProxyOptionsBelowPreview(t *testing.T) {
 	}
 }
 
+func TestNoJSNativeUploadKeepsLoadingAnimationWithoutJavaScript(t *testing.T) {
+	pages, err := NewPages()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	onion := httptest.NewRecorder()
+	if err := pages.Home(onion, PageData{Title: "insomniaXXX", ServerMode: true}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(onion.Body.String(), `type="submit" id="submitBtn" class="btn-action nojs-upload"`) {
+		t.Fatal("onion upload must use the native No-JS loading CSS")
+	}
+	if strings.Contains(onion.Body.String(), "/static/boot.js") {
+		t.Fatal("No-JS upload must not depend on the WebAssembly script")
+	}
+
+	clearnet := httptest.NewRecorder()
+	if err := pages.Home(clearnet, PageData{Title: "insomniaXXX"}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(clearnet.Body.String(), "nojs-upload") {
+		t.Fatal("ZK upload must keep its JavaScript-controlled loading state")
+	}
+
+	for _, css := range []string{
+		"#submitBtn.nojs-upload .btn-text,",
+		"#submitBtn.nojs-upload .btn-loading {",
+		"transition: opacity 0s linear 999s, visibility 0s linear 999s;",
+		"#file:valid ~ #submitBtn.nojs-upload:active .btn-text {",
+		"#file:valid ~ #submitBtn.nojs-upload:active .btn-loading {",
+		"transition-delay: 0s, 0s !important;",
+	} {
+		if !strings.Contains(PicoThemeCSS, css) {
+			t.Fatalf("No-JS upload CSS must preserve the spinner after click: %q", css)
+		}
+	}
+	if strings.Contains(PicoThemeCSS, "#submitBtn.nojs-upload:focus") {
+		t.Fatal("keyboard focus alone must not start the upload animation")
+	}
+}
+
 func TestNoJSButtonLoadingStates(t *testing.T) {
 	pages, err := NewPages()
 	if err != nil {
