@@ -64,32 +64,58 @@
         typeof uploadOne !== "function") throw new Error("invalid shard upload plan");
     const limit = Math.max(1, Math.min(4, Math.floor(concurrency) || 3, shards.length));
     const hashes = new Array(shards.length);
-    let cursor = 0;
+    const BATCH_SIZE = 8;
     let completed = 0;
-    let failure = null;
 
-    async function worker() {
-      while (!failure && cursor < shards.length) {
-        const index = cursor++;
-        try {
-          if (typeof root.wasmSHA256 !== "function") throw new Error("WASM SHA-256 unavailable");
-          const hash = root.wasmSHA256(shards[index]);
-          if (!/^[a-f0-9]{64}$/.test(hash)) throw new Error("invalid shard hash");
-          const result = await uploadOne(shards[index], hash, index);
-          if (!result || result.hash !== hash) throw new Error("relay shard receipt mismatch");
-          hashes[index] = hash;
-          completed++;
-          if (typeof progress === "function") progress(completed, shards.length);
-        } catch (err) {
-          if (!failure) failure = err;
-        }
+    // Signing one OnionGuard request per shard amplifies server load. Hash
+    // just eight shards, ask for one bounded authorization batch, then run
+    // the network workers. Never pre-sign a full 96-shard transfer: Blossom
+    // credentials expire after five minutes and upload links can be slow.
+    for (let start = 0; start < shards.length; start += BATCH_SIZE) {
+      const end = Math.min(shards.length, start + BATCH_SIZE);
+      const group = [];
+      const seen = new Set();
+      for (let i = start; i < end; i++) {
+        if (typeof root.wasmSHA256 !== "function") throw new Error("WASM SHA-256 unavailable");
+        const hash = root.wasmSHA256(shards[i]);
+        if (!/^[a-f0-9]{64}$/.test(hash) || seen.has(hash))
+          throw new Error("invalid or repeated RLNC shard hash");
+        seen.add(hash);
+        hashes[i] = hash;
+        group.push({
+          hash,
+          size: shards[i] instanceof Blob ? shards[i].size : shards[i].byteLength
+        });
       }
-    }
-
-    await Promise.all(Array.from({length: limit}, () => worker()));
-    if (failure) throw failure;
-    if (hashes.some(hash => typeof hash !== "string")) {
-      throw new Error("incomplete RLNC shard upload");
+      const direct = root.InsomniaDirect;
+      try {
+        if (direct && typeof direct.prepareUploadBatch === "function") {
+          // Non-CORS / old-backend fallback remains in uploadEncrypted.
+          await direct.prepareUploadBatch(group);
+        }
+        let cursor = start;
+        let failure = null;
+        async function worker() {
+          while (!failure && cursor < end) {
+            const index = cursor++;
+            try {
+              const result = await uploadOne(shards[index], hashes[index], index);
+              if (!result || result.hash !== hashes[index])
+                throw new Error("relay shard receipt mismatch");
+              completed++;
+              if (typeof progress === "function") progress(completed, shards.length);
+            } catch (err) {
+              if (!failure) failure = err;
+            }
+          }
+        }
+        await Promise.all(Array.from({length: Math.min(limit, end - start)}, () => worker()));
+        if (failure) throw failure;
+      } finally {
+        // Credentials are bearer tokens: never keep them beyond this group.
+        if (direct && typeof direct.clearPreparedGrants === "function")
+          direct.clearPreparedGrants();
+      }
     }
     return hashes;
   }
