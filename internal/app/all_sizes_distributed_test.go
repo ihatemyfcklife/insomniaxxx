@@ -25,9 +25,15 @@ func TestEveryTinyFileSizeIsDistributedAndRecoverable(t *testing.T) {
 			body := &bytes.Buffer{}
 			writer := multipart.NewWriter(body)
 			part, err := writer.CreateFormFile("file", "tiny.bin")
-			if err != nil { t.Fatal(err) }
-			if _, err := part.Write(tc.data); err != nil { t.Fatal(err) }
-			if err := writer.Close(); err != nil { t.Fatal(err) }
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := part.Write(tc.data); err != nil {
+				t.Fatal(err)
+			}
+			if err := writer.Close(); err != nil {
+				t.Fatal(err)
+			}
 
 			req := httptest.NewRequest(http.MethodPost, "/upload", body)
 			req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -62,9 +68,13 @@ func TestEveryTinyFileSizeIsDistributedAndRecoverable(t *testing.T) {
 			}
 			html := rec.Body.String()
 			pos := strings.Index(html, "/d/")
-			if pos < 0 { t.Fatal("missing share link") }
+			if pos < 0 {
+				t.Fatal("missing share link")
+			}
 			end := strings.IndexAny(html[pos:], "\" \n<")
-			if end < 0 { t.Fatal("malformed share link") }
+			if end < 0 {
+				t.Fatal("malformed share link")
+			}
 			sharePath := html[pos : pos+end]
 			dlReq := httptest.NewRequest(http.MethodGet, sharePath+"?download=1", nil)
 			dlRec := httptest.NewRecorder()
