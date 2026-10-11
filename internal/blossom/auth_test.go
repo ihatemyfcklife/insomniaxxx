@@ -4,6 +4,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"testing"
+
+	"fiatjaf.com/nostr"
 )
 
 func TestAuthorizationScopesUploadToBlob(t *testing.T) {
@@ -22,6 +24,20 @@ func TestAuthorizationScopesUploadToBlob(t *testing.T) {
 	raw, err := base64.StdEncoding.DecodeString(token[len(prefix):])
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	// Verify compatibility with the independent full Nostr event parser and
+	// verifier used on the native server, not only our signing wire struct.
+	var signed nostr.Event
+	if err := json.Unmarshal(raw, &signed); err != nil {
+		t.Fatal(err)
+	}
+	if !signed.CheckID() || !signed.VerifySignature() {
+		t.Fatal("local upload authorization is not a valid Nostr event")
+	}
+	signed.Content += "tampered"
+	if signed.VerifySignature() {
+		t.Fatal("tampered upload authorization was accepted")
 	}
 
 	var event struct {
