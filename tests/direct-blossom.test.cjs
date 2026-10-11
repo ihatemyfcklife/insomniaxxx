@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const { createHash } = require('node:crypto');
 
 const source = fs.readFileSync('internal/app/static/direct-blossom.js', 'utf8');
-const bytes = new Uint8Array([0x41, 0x42, 0x4c, 0x4f, 1, 2, 3]);
+const bytes = new Uint8Array([0x41, 0x42, 0x4c, 0x4f, 0x42, 0x53, 0x48, 0x31, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
 const hash = createHash('sha256').update(bytes).digest('hex');
 const relays = ['https://first.example', 'https://second.example'];
 const auth = 'Nostr ' + 'A'.repeat(80);
