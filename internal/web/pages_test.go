@@ -172,7 +172,6 @@ func TestDumpHomePage(t *testing.T) {
 	}
 	body := rec.Body.String()
 	for _, needle := range []string{
-		`How <span class="brand-text">InsomniaXXX</span> Works`,
 		`scrollbar-width: none`,
 		`::-webkit-scrollbar`,
 		`class="view-relays-link"`,
@@ -182,8 +181,18 @@ func TestDumpHomePage(t *testing.T) {
 			t.Fatalf("home page missing %q", needle)
 		}
 	}
-	if strings.Contains(body, `architecture-logo-wrap`) {
-		t.Fatalf("home page still contains architecture-logo-wrap")
+	for _, removed := range []string{
+		`class="architecture-figure"`,
+		`class="architecture-card"`,
+		`id="architectureImg"`,
+		`id="modeToggle"`,
+		`id="architectureDetailsNoJS"`,
+		`id="architectureDetailsWasm"`,
+		`How <span class="brand-text">InsomniaXXX</span> Works`,
+	} {
+		if strings.Contains(body, removed) {
+			t.Fatalf("home page still renders removed architecture element %q", removed)
+		}
 	}
 	_ = os.WriteFile("/tmp/verify_home.html", rec.Body.Bytes(), 0644)
 }
