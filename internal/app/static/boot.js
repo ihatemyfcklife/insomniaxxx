@@ -256,8 +256,16 @@ if (typeof WebAssembly !== "undefined") {
       }
 
       try {
-        const bytes = new Uint8Array(await file.arrayBuffer());
-        const enc = wasmEncrypt(bytes, file.name, file.type || "application/octet-stream");
+        let enc = window.InsomniaStream
+          ? await window.InsomniaStream.encryptFile(file, (done, total) => {
+              if (total > 0) setBtnState("Encrypting " + Math.round(done * 100 / total) + "%...");
+            })
+          : null;
+        if (!enc) {
+          // Compatible with older Wasm bundles without the stream API.
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          enc = wasmEncrypt(bytes, file.name, file.type || "application/octet-stream");
+        }
         if (!enc || enc.error) {
           alert((enc && enc.error) || "Encryption failed.");
           resetBtnState();
@@ -284,23 +292,39 @@ if (typeof WebAssembly !== "undefined") {
         const k = Math.min(64, Math.max(4, Math.ceil(file.size / (1024 * 1024))));
         const n = Math.max(6, k + Math.floor(k / 2));
 
-        const shards = wasmEncodeRLNC(enc.ciphertext, k, n);
+        // RLNC currently needs random access to the complete encrypted
+        // ciphertext. Only this large-file stage materializes that buffer;
+        // no second full-sized plaintext copy is created.
+        const cipherBytes = enc.ciphertext instanceof Blob
+          ? new Uint8Array(await enc.ciphertext.arrayBuffer())
+          : enc.ciphertext;
+        const shards = wasmEncodeRLNC(cipherBytes, k, n);
         if (!shards || shards.error) {
           alert("RLNC encoding failed: " + ((shards && shards.error) || "unknown error"));
           resetBtnState();
           return;
         }
 
-        const shardHashes = [];
-        for (let i = 0; i < shards.length; i++) {
-          setBtnState(`Uploading shard ${i + 1} of ${shards.length}...`);
-
-          const shardHash = typeof wasmSHA256 === "function"
-            ? wasmSHA256(shards[i]) : null;
-          const result = window.InsomniaDirect
-            ? await window.InsomniaDirect.uploadEncrypted(shards[i], shardHash)
-            : await uploadViaProxy(shards[i], shardHash);
-          shardHashes.push(result.hash);
+        const uploadShard = (bytes, hash) => window.InsomniaDirect
+          ? window.InsomniaDirect.uploadEncrypted(bytes, hash)
+          : uploadViaProxy(bytes, hash);
+        let shardHashes;
+        if (window.InsomniaStream) {
+          shardHashes = await window.InsomniaStream.uploadShards(
+            shards, uploadShard,
+            (completed, total) => setBtnState(`Uploaded ${completed} / ${total} shards...`),
+            3
+          );
+        } else {
+          // Legacy fallback for mismatched/cached static frontend assets.
+          shardHashes = [];
+          for (let i = 0; i < shards.length; i++) {
+            setBtnState(`Uploading shard ${i + 1} of ${shards.length}...`);
+            const hash = typeof wasmSHA256 === "function"
+              ? wasmSHA256(shards[i]) : null;
+            const result = await uploadShard(shards[i], hash);
+            shardHashes.push(result.hash);
+          }
         }
 
         setBtnState("Publishing manifest...");
@@ -320,7 +344,8 @@ if (typeof WebAssembly !== "undefined") {
         const manifest = {
           v: 1,
           size: file.size,
-          enc_size: enc.ciphertext.length,
+          enc_size: enc.ciphertext instanceof Blob
+            ? enc.ciphertext.size : enc.ciphertext.length,
           chunk_size: shards[0].length - 40, // serialized ABSH header is not data
           k: k,
           n: n,

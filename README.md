@@ -144,6 +144,35 @@ The encrypted object is intentionally uploaded as `application/octet-stream`: it
 When upgrading from an older release, update an existing `.env` too: values already present in `.env` override the new defaults. Replace any old media-only list such as `blossom.nostr.build,blossom.primal.net` with the generic Blossom defaults shown above.
 
 
+## Streaming encryption and bounded RLNC upload workers (WASM)
+
+WASM uploads prefer a streaming-compatible cipher encoder: `File.slice()`
+reads **at most 1 MiB of plaintext per browser operation**, while the Go
+WebAssembly encoder emits individually authenticated packets compatible with
+the existing ABLOBSH1 decryptor. SHA-256 is accumulated incrementally. The
+ciphertext is stored as a browser `Blob` rather than buffered as an extra
+full-sized Go `bytes.Buffer`; direct and proxied uploads can send the Blob
+without first copying it all into one JavaScript array. The fallback path
+remains for a cached/older WASM bundle.
+
+**Important memory limit:** For files over 2 MiB the existing RLNC encoder
+still needs the **entire ciphertext in memory** to build the systematic
+and parity shards. This upgrade removes the initial full-size *plaintext*
+buffer in the browser, but **does not yet offer constant-memory RLNC encoding
+or streaming decryption**, and the browser can still exhaust RAM on large
+files/older mobile devices.
+
+RLNC shard uploads now use **three concurrent workers** (never more than
+four), return hashes in original manifest order regardless of which shard
+finishes first, and refuse to publish a share link when any shard upload
+fails. Every shard and final encrypted manifest still requires two valid
+independent relay receipts (or the existing server proxy fallback).
+
+The browser transport remembers recent CORS/relay failures during the page
+session and prioritizes healthy configured HTTPS relays; it does **not**
+probe unknown relays or transmit share keys. Actual sustained throughput and
+large-browser-memory improvements require staging measurements.
+
 ## Browser-to-Blossom transport (WASM)
 
 With JavaScript/WebAssembly enabled, insomniaXXX first attempts to send and

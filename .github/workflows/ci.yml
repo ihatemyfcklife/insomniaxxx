@@ -50,6 +50,8 @@ jobs:
           node --check internal/app/static/boot.js
           node --check internal/app/static/view.js
           node --check internal/app/static/direct-blossom.js
+          node --check internal/app/static/stream-file.js
+          node --check tests/stream-file.test.cjs
           node --check tests/direct-blossom.test.cjs
           node --check tests/frontend.test.cjs
           node --check tests/load/cipher-download.mjs
@@ -59,6 +61,7 @@ jobs:
           node tests/zk-fragment.test.cjs
           node tests/frontend.test.cjs
           node tests/direct-blossom.test.cjs
+          node tests/stream-file.test.cjs
 
       - name: Run tests with race detector
         run: go test -race -count=1 ./...
