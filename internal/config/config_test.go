@@ -15,6 +15,24 @@ func TestParseURLs(t *testing.T) {
 	}
 }
 
+func TestDefaultUploadSizeMatchesSupportedCeiling(t *testing.T) {
+	if DefaultMaxUploadBytes != 64<<20 || DefaultMaxUploadBytes != MaxConfigurableUploadBytes {
+		t.Fatalf("default upload size %d must match supported 64 MiB ceiling", DefaultMaxUploadBytes)
+	}
+	t.Setenv("APP_ENV", "development")
+	t.Setenv("MAX_UPLOAD_BYTES", "")
+	t.Setenv("BLOSSOM_URLS", "https://blossom.example")
+	t.Setenv("PUBLIC_BASE_URL", "")
+	t.Setenv("SPOOL_BUDGET_BYTES", "")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("default configuration failed: %v", err)
+	}
+	if cfg.MaxUploadBytes != int64(64<<20) {
+		t.Fatalf("loaded default upload size = %d, want 64 MiB", cfg.MaxUploadBytes)
+	}
+}
+
 func TestConfigValidation(t *testing.T) {
 	cfg := Config{
 		ListenAddr:        ":8080",
