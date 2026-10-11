@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -92,7 +93,7 @@ func TestUploadOverloadIsRetryableAndRecovers(t *testing.T) {
 
 func TestRawUploadReusesMemoryAndDiskMultipartWithoutChangingBytes(t *testing.T) {
 	for _, size := range []int{64, 2 << 20} {
-		t.Run(string(rune('A' + size/(1<<20))), func(t *testing.T) {
+		t.Run(fmt.Sprint(size), func(t *testing.T) {
 			a, stored, cleanup := setupTestServer(t)
 			defer cleanup()
 			defer a.Close()
