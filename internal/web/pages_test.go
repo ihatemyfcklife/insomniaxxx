@@ -107,6 +107,35 @@ func TestPreviewMascotAnchoredAbovePreview(t *testing.T) {
 		!strings.Contains(PicoThemeCSS, ".no-preview-cross {") {
 		t.Fatal("preview mascot or cross styles missing")
 	}
+
+	mascotCSS := strings.SplitN(PicoThemeCSS, ".preview-mascot {", 2)
+	if len(mascotCSS) != 2 || !strings.Contains(strings.SplitN(mascotCSS[1], "}", 2)[0], "right: 3rem;") {
+		t.Fatal("desktop preview mascot must match the home-page right: 3rem offset")
+	}
+}
+
+func TestZKLoadingGIFCannotBeSelectedOrDragged(t *testing.T) {
+	pages, err := NewPages()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	if err := pages.View(rec, PageData{Title: "insomniaXXX", ZK: true}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(rec.Body.String(), `id="zkSpinner" width="192" height="192" draggable="false"`) {
+		t.Fatal("ZK loading GIF must have draggable=false")
+	}
+	rules := strings.SplitN(PicoThemeCSS, ".zk-loading-gif {", 2)
+	if len(rules) != 2 {
+		t.Fatal("ZK GIF CSS selector missing")
+	}
+	styles := strings.SplitN(rules[1], "}", 2)[0]
+	for _, property := range []string{"pointer-events: none;", "user-select: none;", "-webkit-user-select: none;", "-webkit-user-drag: none;"} {
+		if !strings.Contains(styles, property) {
+			t.Fatalf("ZK GIF must prevent user selection/dragging: %s", property)
+		}
+	}
 }
 
 func TestAllPagesRenderLogo(t *testing.T) {
