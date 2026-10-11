@@ -69,16 +69,16 @@ func TestGuardPagesRenderLogo(t *testing.T) {
 	}
 }
 
-func TestSuccessContinueButtonFollowsVerificationText(t *testing.T) {
+func TestSuccessContinueLinkFollowsVerificationText(t *testing.T) {
 	page := successHTML(nil, "/d/abc?cipher=1")
 	status := strings.Index(page, "Verification passed. Redirecting...")
 	powered := strings.Index(page, "Powered by")
-	button := strings.Index(page, `<p class="guard-success-action"><a href="/d/abc?cipher=1" role="button">Continue</a></p>`)
-	if status < 0 || powered <= status || button <= powered {
-		t.Fatal("Continue button must appear on a separate line after all success text")
+	link := strings.Index(page, `<p class="guard-success-action"><a href="/d/abc?cipher=1" class="view-relays-link">Continue</a></p>`)
+	if status < 0 || powered <= status || link <= powered {
+		t.Fatal("Continue text link must appear on a separate line after all success text")
 	}
 	if !strings.Contains(page, ".guard-success-action {") {
-		t.Fatal("success button spacing must use the shared site theme")
+		t.Fatal("success link spacing must use the shared site theme")
 	}
 }
 
