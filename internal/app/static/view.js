@@ -10,6 +10,7 @@
   const statusTitle = document.getElementById("zkStatusTitle");
   const status = document.getElementById("zkStatus");
   const box = document.getElementById("previewBox");
+  const frame = document.getElementById("previewFrame");
   const dl = document.getElementById("zkDownload");
   const proxyOptions = document.getElementById("zkProxyOptions");
 
@@ -127,7 +128,7 @@
     // A failed attempt may have moved the proxy checkbox into the loading
     // panel so it stays accessible. Restore its position once preview succeeds.
     // Also enforce the layout if an older rendered page placed it above the file.
-    if (box && proxyOptions) box.insertAdjacentElement("afterend", proxyOptions);
+    if (proxyOptions && (frame || box)) (frame || box).insertAdjacentElement("afterend", proxyOptions);
 
     // Révéler le contenu de preview et masquer l'animation de chargement
     if (loader) loader.style.display = "none";
@@ -180,6 +181,7 @@
         cross.alt = "";
         cross.width = 128;
         cross.height = 128;
+        cross.draggable = false;
         fallback.appendChild(cross);
         box.replaceChildren(fallback);
       }
