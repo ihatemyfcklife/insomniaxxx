@@ -46,41 +46,49 @@ func TestDirectUploadBatchScopesEachHashAndBoundsCPU(t *testing.T) {
 		}
 		for _, target := range grant.Targets {
 			raw, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(target.Authorization, "Nostr "))
-			if err != nil { t.Fatal(err) }
+			if err != nil {
+				t.Fatal(err)
+			}
 			var event struct {
-				Kind int `json:"kind"`
+				Kind int        `json:"kind"`
 				Tags [][]string `json:"tags"`
 			}
-			if err := json.Unmarshal(raw, &event); err != nil { t.Fatal(err) }
-			if event.Kind != 24242 { t.Fatal("invalid Nostr upload event") }
+			if err := json.Unmarshal(raw, &event); err != nil {
+				t.Fatal(err)
+			}
+			if event.Kind != 24242 {
+				t.Fatal("invalid Nostr upload event")
+			}
 			found := false
 			for _, tag := range event.Tags {
 				if len(tag) > 1 && tag[0] == "x" && tag[1] == grant.Hash {
 					found = true
 				}
 			}
-			if !found { t.Fatal("batch granted unscoped relay upload") }
+			if !found {
+				t.Fatal("batch granted unscoped relay upload")
+			}
 		}
 	}
 	invalid := []struct {
-		label string
-		data []byte
+		label  string
+		data   []byte
 		origin string
 	}{
-		{"foreign origin",payload,"https://evil.example"},
-		{"missing list",[]byte(`{}`),""},
-		{"excess entries",mustBatchJSON(t, append(blobs, blobs[0])),""},
-		{"duplicate hashes",mustBatchJSON(t, []directBlobRequest{blobs[0], blobs[0]}),""},
-		{"invalid size",mustBatchJSON(t, []directBlobRequest{{Hash:hash('e'),Size:0}}),""},
-		{"invalid hash",mustBatchJSON(t, []directBlobRequest{{Hash:"bad", Size:32}}),""},
-		{"unknown property",[]byte(`{"blobs":[{"hash":"`+hash('e')+`","size":32,"url":"https://evil.example"}]}`),""},
-		{"trailing body",append(append([]byte{},payload...),[]byte(` {}`)...),""},
-		{"huge body",[]byte(strings.Repeat(" ",2049)),""},
+		{"foreign origin", payload, "https://evil.example"},
+		{"missing list", []byte(`{}`), ""},
+		{"excess entries", mustBatchJSON(t, append(blobs, blobs[0])), ""},
+		{"duplicate hashes", mustBatchJSON(t, []directBlobRequest{blobs[0], blobs[0]}), ""},
+		{"invalid size", mustBatchJSON(t, []directBlobRequest{{Hash: hash('e'), Size: 0}}), ""},
+		{"invalid hash", mustBatchJSON(t, []directBlobRequest{{Hash: "bad", Size: 32}}), ""},
+		{"unknown property", []byte(`{"blobs":[{"hash":"` + hash('e') + `","size":32,"url":"https://evil.example"}]}`), ""},
+		{"trailing body", append(append([]byte{}, payload...), []byte(` {}`)...), ""},
+		{"huge body", []byte(strings.Repeat(" ", 2049)), ""},
 	}
 	for _, tc := range invalid {
 		t.Run(tc.label, func(t *testing.T) {
-			if got := send(tc.data,tc.origin); got.Code == http.StatusOK {
-				t.Fatalf("accepted invalid authorization batch: %s",got.Body.String())
+			if got := send(tc.data, tc.origin); got.Code == http.StatusOK {
+				t.Fatalf("accepted invalid authorization batch: %s", got.Body.String())
 			}
 		})
 	}
@@ -88,8 +96,12 @@ func TestDirectUploadBatchScopesEachHashAndBoundsCPU(t *testing.T) {
 
 func mustBatchJSON(t *testing.T, blobs []directBlobRequest) []byte {
 	t.Helper()
-	b, err := json.Marshal(struct{Blobs []directBlobRequest `json:"blobs"`}{blobs})
-	if err != nil { t.Fatal(err) }
+	b, err := json.Marshal(struct {
+		Blobs []directBlobRequest `json:"blobs"`
+	}{blobs})
+	if err != nil {
+		t.Fatal(err)
+	}
 	return b
 }
 
@@ -97,12 +109,12 @@ func TestBatchSigningCapacityFailsClosed(t *testing.T) {
 	a := directTestServer()
 	a.directAuthSlots = make(chan struct{}, 1)
 	a.directAuthSlots <- struct{}{}
-	body := `{"blobs":[{"hash":"`+strings.Repeat("a",64)+`","size":32}]}`
+	body := `{"blobs":[{"hash":"` + strings.Repeat("a", 64) + `","size":32}]}`
 	r := httptest.NewRequest("POST", "/direct-upload-auth/batch", strings.NewReader(body))
 	r.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	a.handleDirectUploadAuthBatch(w, r)
 	if w.Code != http.StatusServiceUnavailable || w.Header().Get("Retry-After") != "1" {
-		t.Fatalf("saturated signer did not fail closed: %d %s",w.Code,w.Body.String())
+		t.Fatalf("saturated signer did not fail closed: %d %s", w.Code, w.Body.String())
 	}
 }
