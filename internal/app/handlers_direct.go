@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"anonblossom/internal/blossom"
-
 )
 
 // directRelayURLs returns only explicitly configured storage origins.
