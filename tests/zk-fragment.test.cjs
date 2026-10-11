@@ -29,17 +29,20 @@ assert(!saved.has('insomnia:pending-zk:'+pathname),'invalid fragments must not b
 // The final DOM position matters: server-side template ordering alone cannot
 // catch a checkbox left above the preview by a previous loading/error state.
 async function testProxyPositionAfterDecryption() {
-  const positions = ['proxy', 'header', 'preview', 'buttons'];
+  const positions = ['proxy', 'header', 'frame', 'buttons'];
   const fallbackChildren = [];
   let fallbackRoot = null;
   const checkboxArea = {style:{}};
-  const preview = {
+  const frame = {
     insertAdjacentElement(position, element) {
       assert.equal(position, 'afterend');
       assert.equal(element, checkboxArea);
       positions.splice(positions.indexOf('proxy'), 1);
-      positions.splice(positions.indexOf('preview') + 1, 0, 'proxy');
-    },
+      positions.splice(positions.indexOf('frame') + 1, 0, 'proxy');
+    }
+  };
+  const preview = {
+    insertAdjacentElement(){throw new Error('proxy toggle must be placed after the entire preview frame');},
     replaceChildren(node) {fallbackRoot = node;}
   };
   const content = {style:{display:'none'}};
@@ -47,7 +50,7 @@ async function testProxyPositionAfterDecryption() {
   const elements = {
     zkLoader:{style:{}}, zkContent:content, zkSpinner:{style:{}},
     zkVisual:{style:{}}, zkStatusTitle:{style:{}}, zkStatus:{style:{}},
-    previewBox:preview, zkDownload:download, zkProxyOptions:checkboxArea,
+    previewBox:preview, previewFrame:frame, zkDownload:download, zkProxyOptions:checkboxArea,
     previewName:{}, previewSize:{}, previewType:{}
   };
   const browser = {
@@ -79,7 +82,7 @@ async function testProxyPositionAfterDecryption() {
     await new Promise(resolve=>setImmediate(resolve));
   }
   assert.equal(content.style.display,'','decrypted preview must be revealed');
-  assert.deepEqual(positions,['header','preview','proxy','buttons'],
+  assert.deepEqual(positions,['header','frame','proxy','buttons'],
     'proxy checkbox must appear directly below preview and above download buttons');
   assert.equal(download.href,'blob:recovered-file');
   assert.equal(fallbackRoot?.className,'no-preview muted');
@@ -87,6 +90,7 @@ async function testProxyPositionAfterDecryption() {
   assert.equal(cross?.src,'/static/preview-unavailable.png',
     'browser-decrypted files without preview must show the cross PNG');
   assert.equal(cross?.className,'no-preview-cross');
+  assert.equal(cross?.draggable,false,'fallback cross must not be draggable');
 }
 testProxyPositionAfterDecryption().then(()=>{
   console.log('Zero-Knowledge fragment continuity and proxy placement checks passed');
