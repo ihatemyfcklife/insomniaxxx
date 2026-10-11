@@ -10,10 +10,10 @@ const relays = ['https://first.example', 'https://second.example'];
 const auth = 'Nostr ' + 'A'.repeat(80);
 const sha = data => createHash('sha256').update(data).digest('hex');
 
-function harness({ badFirstDownload = false, failedUpload = false, corsFailure = false, proxyOnly = false } = {}) {
+function harness({ badFirstDownload = false, failedUpload = false, corsFailure = false, proxyOnly = false, view = false } = {}) {
   const calls = [];
   const window = {
-    location: { origin: 'https://files.example' },
+    location: { origin: 'https://files.example', pathname: view ? '/d/' + hash : '/' },
     wasmSHA256: sha,
     sessionStorage: { getItem(key) { return key === 'insomnia:proxy-only' && proxyOnly ? '1' : null; } }
   };
@@ -92,6 +92,13 @@ function harness({ badFirstDownload = false, failedUpload = false, corsFailure =
     const result = await h.api.downloadEncrypted(hash);
     assert.deepEqual(Array.from(result), Array.from(bytes));
     assert(h.calls.some(x => x.url === '/d/' + hash + '?cipher=1'));
+  }
+  {
+    const h = harness({ view:true });
+    const result = await h.api.downloadEncrypted(hash);
+    assert.deepEqual(Array.from(result), Array.from(bytes));
+    assert(!h.calls.some(x => x.url.startsWith('https://')),
+      'a first-time share recipient must not contact relays before consenting');
   }
   {
     const h = harness({ proxyOnly:true });
