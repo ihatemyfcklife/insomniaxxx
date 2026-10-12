@@ -36,6 +36,15 @@ go run ./cmd/pages -out dist/pages
 node tests/pages-static.test.cjs
 ```
 
+
+
+The exporter reads the latest reachable Git release tag for its footer (e.g.
+`v0.2.34`) and refuses to publish `dev`. When building without the Git
+history/tags (such as from a source ZIP), provide a released version explicitly:
+`go run ./cmd/pages -out dist/pages -version vX.Y.Z`. The deployment workflow
+also refreshes after a successful release workflow so published Pages can
+display the newest tag.
+
 Serve `dist/pages` from a local HTTP server (including from a nested path),
 not directly using `file://`. The output contains `index.html`,
 `view.html`, `relays.html`, `.nojekyll` and a `static/` directory
