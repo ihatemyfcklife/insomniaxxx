@@ -1,0 +1,84 @@
+name: pages
+
+# Publish only from a successful CI commit on main (or a manual rerun).
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: >-
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.event == 'push') ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    env:
+      SITE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      PAGES_BLOSSOM_RELAYS: ${{ vars.PAGES_BLOSSOM_RELAYS }}
+    steps:
+      - name: Checkout verified main revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Reject stale deployments
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse HEAD)" = "$SITE_SHA"
+          test "$(git rev-parse origin/main)" = "$SITE_SHA"
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.x'
+          check-latest: true
+          cache: true
+
+      - name: Build WASM and export static pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          go mod download
+          go mod verify
+          cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" internal/app/static/wasm_exec.js
+          GOOS=js GOARCH=wasm go build -trimpath -ldflags='-s -w' -o internal/app/static/app.wasm ./cmd/wasm
+          if [ -n "$PAGES_BLOSSOM_RELAYS" ]; then
+            go run ./cmd/pages -out dist/pages -relays "$PAGES_BLOSSOM_RELAYS"
+          else
+            go run ./cmd/pages -out dist/pages
+          fi
+          node tests/pages-static.test.cjs
+          node tests/frontend.test.cjs
+          node tests/direct-blossom.test.cjs
+          node tests/wasm-auth-smoke.cjs
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+
+      - name: Upload static site
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: dist/pages
+
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
