@@ -100,10 +100,7 @@ func renderPages(pages *web.Pages) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	viewHTML = strings.Replace(viewHTML, `data-cipher=""`, `data-cipher=""`, 1) // hash comes only from ?hash=
-	viewHTML = strings.Replace(viewHTML, `<div id="zkContent"`,
-		`<div id="zkContent"`, 1)
-
+	// The static viewer reads its ciphertext hash from ?hash=, not from Go.
 	return makeStatic(homeHTML), makeStatic(viewHTML), nil
 }
 
@@ -123,6 +120,7 @@ func makeStatic(page string) string {
 	// Project Pages live at /<repository>/, never at the domain root.
 	page = strings.ReplaceAll(page, "/static/", "./static/")
 	page = strings.ReplaceAll(page, `href="/"`, `href="./"`)
+	page = strings.ReplaceAll(page, `href="/favicon.ico"`, `href="./static/favicon.ico"`)
 	page = strings.Replace(page, `<script src="./static/direct-blossom.js"></script>`,
 		`<script src="./static/config.js"></script>
   <script src="./static/direct-blossom.js"></script>`, 1)
