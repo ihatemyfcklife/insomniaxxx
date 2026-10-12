@@ -84,6 +84,23 @@ function harness({offline=false}={}) {
     assert(!page.includes('>PGP</a>') && !page.includes('>Contact</a>') &&
       !page.includes('>ads</a>'), 'old placeholder links must not ship');
   }
+  assert(relaysPage.includes('class="relays-card"'),
+    'static relay page must reuse the regular relay card');
+  assert(relaysPage.includes('class="relays-table" role="grid"'),
+    'static relay page must reuse the desktop table');
+  assert.equal((relaysPage.match(/class="relay-row"/g)||[]).length,3,
+    'the default three configured relays must each render a responsive row');
+  assert.equal((relaysPage.match(/class="relay-badge unchecked">Not checked<\/span>/g)||[]).length,3,
+    'static relays must show unknown status, not pretend to be online or offline');
+  assert(relaysPage.includes('Configured HTTPS Blossom storage destinations.'));
+  assert(relaysPage.includes('status, latency and uptime are not monitored here'));
+  assert(relaysPage.includes('<th scope="col">Source</th>') &&
+         relaysPage.includes('<th scope="col">Last Check</th>'));
+  assert(!relaysPage.includes('Auto-discovered via Nostr') &&
+         !relaysPage.includes('class="relay-badge online"') &&
+         !relaysPage.includes('class="relay-badge offline"'));
+  assert(!relaysPage.includes('href="/relays"'),
+    'static relay page must not navigate to a Go-only route');
   assert(index.includes('src="./static/config.js"'));
   assert(index.includes('href="./relays.html"'));
   assert(!index.includes('id="proxyOnly"') && !viewer.includes('id="proxyOnly"'));
