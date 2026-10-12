@@ -6,6 +6,10 @@
   const HEX = /^[a-f0-9]{64}$/;
   const MAX_BLOB = 68 * 1024 * 1024;
   const staticMode = !!(root.InsomniaStatic && root.InsomniaStatic.enabled);
+  // The Go-hosted service remains limited to its three explicitly configured
+  // origins. Static Pages can use a larger trusted allowlist, never the public
+  // reference-only Blossom directory.
+  const MAX_RELAY_TARGETS = staticMode ? 12 : 3;
   const DIRECT_TIMEOUT_MS = 45000;
   let relayList = null;
   let proxySelection = null;
@@ -18,7 +22,7 @@
     const targets = [];
     const seen = new Set();
     if (!Array.isArray(raw)) return targets;
-    for (const target of raw.slice(0, 3)) {
+    for (const target of raw.slice(0, MAX_RELAY_TARGETS)) {
       const url = target && allowedRelay(target.url);
       if (!url || !known.includes(url) ||
           typeof target.authorization !== "string" ||
@@ -141,7 +145,7 @@
     if (!info || !Array.isArray(info.relays)) throw new Error("invalid direct relay list");
     const known = new Set();
     const relays = [];
-    for (const raw of info.relays.slice(0, 3)) {
+    for (const raw of info.relays.slice(0, MAX_RELAY_TARGETS)) {
       const url = allowedRelay(raw);
       if (url && !known.has(new URL(url).hostname)) {
         known.add(new URL(url).hostname);
@@ -309,8 +313,8 @@
 
     if (targets.length >= 2) {
       // A shard is stored on two independent hosts, not sent to every relay.
-      // Rotate the pair across A+B, B+C, C+A for three hosts. On errors,
-      // use the remaining configured host before reporting direct failure.
+      // Rotate the pair across distinct configured hosts. On errors,
+      // try remaining permitted targets before reporting direct failure.
       const available = targets.filter(target =>
         (relayHealth.get(target.url)?.cooldownUntil || 0) <= Date.now());
       if (available.length >= 2) targets = available;
