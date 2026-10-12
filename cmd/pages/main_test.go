@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -109,23 +110,81 @@ func TestStaticPagesHaveBrowserOnlyPaths(t *testing.T) {
 }
 
 func TestStaticRelaysDoNotClaimLiveStatus(t *testing.T) {
-	page := renderRelayPage([]string{"https://one.example", "https://two.example"})
+	pages, err := web.NewPages()
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := renderRelayPage(pages, []string{"https://one.example", "https://two.example"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, required := range []string{
-		"Configured Blossom Relays",
-		"availability and browser CORS permissions are not guaranteed",
+		"Blossom Relays",
+		"Configured HTTPS Blossom storage destinations.",
+		"Availability and browser CORS are not checked",
+		`class="relays-card"`,
+		`class="relays-table-wrapper"`,
+		`class="relays-table" role="grid"`,
+		`<th scope="col">Server</th>`,
+		`<th scope="col">Status</th>`,
+		`<th scope="col">Latency</th>`,
+		`<th scope="col">Source</th>`,
+		`<th scope="col">Last Check</th>`,
+		`class="relay-row"`,
+		`class="relay-badge unchecked">Not checked</span>`,
+		`class="relay-source"`,
+		`class="relay-check"`,
+		`class="relay-latency"`,
+		`>Configured</small>`,
+		`href="./static/pico.min.css"`,
 		`href="./"`,
 		`href="https://ihatemyfcklife.github.io/insomniaxxx/" class="logo-link"`,
 		`href="https://one.example"`,
 		`href="https://two.example"`,
+		"status, latency and uptime are not monitored here",
 	} {
 		if !strings.Contains(page, required) {
 			t.Fatalf("static relay page missing %q", required)
 		}
 	}
-	if strings.Contains(page, `href="/" class="logo-link"`) {
-		t.Fatal("relay page logo must not navigate to the domain root")
+	if strings.Count(page, `class="relay-row"`) != 2 {
+		t.Fatal("static relay table must have one row per configured relay")
 	}
-	if strings.Contains(page, "Auto-discovered via Nostr") || strings.Contains(page, "Online</span>") {
-		t.Fatal("static site must not advertise server-monitored relay status")
+	for _, forbidden := range []string{
+		`href="/" class="logo-link"`,
+		`href="/relays"`,
+		`<a role="button" class="secondary" href="/relays">Refresh</a>`,
+		"Auto-discovered via Nostr",
+		`class="relay-badge online"`,
+		`class="relay-badge offline"`,
+		`class="relay-badge blacklisted"`,
+	} {
+		if strings.Contains(page, forbidden) {
+			t.Fatalf("static page must not claim live relay monitoring: %q", forbidden)
+		}
+	}
+	if !strings.Contains(web.PicoThemeCSS, `@media (max-width: 680px)`) ||
+		!strings.Contains(web.PicoThemeCSS, `tr.relay-row {`) ||
+		!strings.Contains(web.PicoThemeCSS, `.relay-badge.unchecked {`) {
+		t.Fatal("shared responsive relay-card styling must support unchecked static relays")
+	}
+
+	// The standard clearnet and Tor relay pages must retain live status labels
+	// and the refresh action.
+	live := httptest.NewRecorder()
+	if err := pages.Relays(live, web.PageData{
+		Title: "insomniaXXX",
+		Relays: []web.RelayView{{URL: "https://one.example", Online: true, Source: "Nostr"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, required := range []string{
+		"Active storage instances discovered and monitored across Nostr.",
+		`class="relay-badge online">Online</span>`,
+		`href="/relays">Refresh</a>`,
+	} {
+		if !strings.Contains(live.Body.String(), required) {
+			t.Fatalf("server-hosted relay view changed unexpectedly: %q", required)
+		}
 	}
 }
