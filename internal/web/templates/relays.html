@@ -13,7 +13,7 @@
     {{template "logo" .}}
     <header>
       <h1>Blossom Relays</h1>
-      <p class="muted">Active storage instances discovered and monitored across Nostr.</p>
+      <p class="muted">{{if .Static}}Configured HTTPS Blossom storage destinations. Availability and browser CORS are not checked on this static site.{{else}}Active storage instances discovered and monitored across Nostr.{{end}}</p>
     </header>
 
     <article class="relays-card">
@@ -37,7 +37,9 @@
                 </div>
               </td>
               <td class="relay-status">
-                {{if .Blacklisted}}
+                {{if $.Static}}
+                  <span class="relay-badge unchecked">Not checked</span>
+                {{else if .Blacklisted}}
                   <span class="relay-badge blacklisted">Blacklisted</span>
                 {{else if .Online}}
                   <span class="relay-badge online">Online</span>
@@ -67,11 +69,11 @@
 
     <div class="grid">
       <a role="button" href="/">Back</a>
-      <a role="button" class="secondary" href="/relays">Refresh</a>
+      {{if not .Static}}<a role="button" class="secondary" href="/relays">Refresh</a>{{end}}
     </div>
 
     <div class="relays-note">
-      <small class="muted">Auto-discovered via Nostr BUD-04 (kind 10063). Healthy instances are used for storage redundancy.</small>
+      <small class="muted">{{if .Static}}Relays are configured at build time. Direct transfers require browser CORS and accepting uploads; status, latency and uptime are not monitored here.{{else}}Auto-discovered via Nostr BUD-04 (kind 10063). Healthy instances are used for storage redundancy.{{end}}</small>
     </div>
 
     {{template "footer" .}}
