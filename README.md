@@ -1,16 +1,74 @@
 # insomniaXXX
 
-> Network policy: clearnet processes files locally with an optional encrypted proxy; the `.onion` service processes files on the server. See [network modes and deployment](docs/NETWORK_MODES.md).
+**File sharing. No accounts. Decentralized Blossom relays.**
 
-Decentralized anonymous file sharing in Go.
+insomniaXXX is an open-source file-sharing application built with **Go,
+WebAssembly, [badcrypt](https://github.com/ihatemyfcklife/badcrypt),
+RLNC erasure coding** and [Blossom](https://github.com/hzrd149/blossom)
+storage relays. Uploaded data is encrypted before reaching storage;
+where encryption happens depends on the edition.
 
-**GitHub Pages / 100% browser-side WASM edition:** the repository can also
-build and publish a standalone static frontend with no Go server at runtime.
-It encrypts, RLNC-shards, uploads and decrypts locally, using directly
-configured HTTPS Blossom relays. The static share format is
-`view.html?hash=<ciphertext_hash>#<secret>`. See the
-[GitHub Pages deployment guide](docs/GITHUB_PAGES.md) for activation,
-configuration, CORS/relay availability, and privacy trade-offs.
+**[Open the browser-only WASM edition on GitHub Pages](https://ihatemyfcklife.github.io/insomniaxxx/)** ·
+[Deploy your own](docs/GITHUB_PAGES.md) ·
+[Network modes](docs/NETWORK_MODES.md) ·
+[Releases](https://github.com/ihatemyfcklife/insomniaxxx/releases) ·
+[License](LICENSE)
+
+## Choose an edition
+
+| Edition | File encryption | JavaScript required? | Application Go server at runtime? |
+| --- | --- | --- | --- |
+| **GitHub Pages (static)** | In the browser, using Go/WASM | Yes | No |
+| **Clearnet (Go-hosted)** | In the browser, using Go/WASM | Yes | Yes, serves the UI and optional encrypted relay proxy |
+| **Tor / No-JS (.onion)** | On the application server | No | Yes |
+
+- **Zero-Knowledge WASM:** the app generates the key and encrypts/decrypts
+  locally in your browser. The Go-hosted clearnet edition supports an
+  **explicitly selected** encrypted relay proxy; direct Blossom transfers are
+  the default. Its share links use `/d/<hash>#<key>`.
+- **100% static GitHub Pages:** the same WASM encryption and RLNC pipeline,
+  directly connecting to configured HTTPS Blossom relays. No application
+  backend, OnionGuard or proxy is present. Its share links use
+  `view.html?hash=<hash>#<key>`. **Relay CORS and upload permissions must
+  work in the browser**; otherwise transfers fail rather than falling back
+  to a server. See [deployment and limitations](docs/GITHUB_PAGES.md).
+- **Tor / No-JS:** works without JavaScript (including Tor Browser's Safest
+  setting). The server handles the original file and decryption key, so this
+  edition is **not Zero-Knowledge**. Its share links use
+  `/d/<hash>/<key>`; redact such paths from HTTP logs.
+
+## Features
+
+- No accounts or application file database.
+- ChaCha20-Poly1305 encryption, with separate keys for encrypted RLNC manifests.
+- All new uploads are divided into **RLNC shards** and require independent
+  Blossom upload receipts; reconstruction needs enough **linearly independent**
+  shards. Redundancy does not guarantee permanent storage.
+- Browser-side cryptography and Nostr-signed Blossom upload authorization
+  in WASM mode; integrity checks before decryption.
+- Media previews, downloads and share links; native No-JS access on Tor.
+- Default upload limit: **64 MiB**. Browser memory, relay availability,
+  cross-origin permissions and bandwidth remain practical constraints.
+
+> **Privacy:** Zero-Knowledge protects file plaintext and its decryption key
+> from the application backend, not from compromised frontend code. Direct
+> Blossom relays see connection metadata such as your IP/Tor exit and encrypted
+> blob hashes. Anyone with a complete share link can decrypt the file.
+> No edition guarantees anonymity or traffic-analysis resistance.
+
+## Quick start
+
+Run the Go-hosted application from the repository root:
+
+```sh
+make deps
+make run
+```
+
+For the static site, follow [GitHub Pages deployment](docs/GITHUB_PAGES.md).
+For Tor and production instances, follow
+[network modes](docs/NETWORK_MODES.md) and the
+[production checklist](#production-deployment-checklist).
 
 ## Dependencies
 
@@ -26,7 +84,7 @@ Install them with:
 make deps
 ```
 
-Go 1.26.0 or newer is required (see the `go` directive in `go.mod`). The Docker build uses `golang:1.27.2-alpine`, and CI tests with Go 1.27.x to match the production build toolchain.
+Use the Go version declared in `go.mod` or newer. The Docker builder is pinned to `golang:1.27.2-alpine`, and CI builds with Go 1.27.x.
 
 ## Configuration
 
@@ -117,11 +175,11 @@ OnionGuard's wait-room and CAPTCHA pages use the same Pico CSS link and the same
 
 The classic HTML form posts the file to the server, which encrypts it with `badcrypt` (ChaCha20-Poly1305 AEAD) and **always** splits the ciphertext into RLNC shards before distributing at least two copies of each shard to different configured Blossom hosts. The share link carries the key in the URL path: `/d/<hash>/<key>`.
 
-No JavaScript runs at any point, so this path works in Tor Browser at Safest level and in any browser with scripting disabled. It is also the fallback path: if the Wasm bundle is missing or fails to load, the page silently falls back to the plain HTML form. Because the upload, the preview, and the download are all handled by the server in this mode, the server sees the plaintext file, its name and MIME type, and the share key.
+No JavaScript is required, so this path works in Tor Browser at Safest level. The processing mode depends on the configured service origin: **the clearnet app does not silently switch to server-side encryption when JavaScript or WASM is disabled or fails to load**; its upload stays disabled. Because the Tor server handles uploads, previews and downloads, it can see the plaintext, filename, MIME type and share key.
 
 ### Zero-Knowledge mode (browser-side, progressive enhancement)
 
-When WebAssembly is available, `boot.js` loads `app.wasm` and takes over the form: key generation, AEAD encryption, and RLNC encoding all run locally in the browser for **all file sizes**. Only already-encrypted bytes leave the browser. The app first attempts direct browser-to-Blossom transfers using short-lived hash-scoped Nostr authorizations, and falls back to `POST /upload-raw` when a relay does not support browser CORS uploads. The share link keeps the key in the URL fragment: `/d/<hash>#<key>`. On download, the browser retrieves ciphertext directly from configured relays if the recipient opts into direct relay access, otherwise it uses the app proxy (`?cipher=1`), then decrypts and decodes locally.
+When WebAssembly is available on the clearnet site, `boot.js` loads `app.wasm`: key generation, AEAD encryption and RLNC encoding run locally in the browser for supported sizes (up to 64 MiB). Only ciphertext is uploaded. WASM locally signs hash-scoped Nostr Blossom authorizations and transfers encrypted data **directly by default**. The user may select **Private relay access** to route encrypted transfers through the Go server instead; failures never enable that proxy automatically. The share link keeps the key in the URL fragment: `/d/<hash>#<key>`. Downloads likewise try configured relays directly by default, with the proxy available only when explicitly selected.
 
 Browsers never send URL fragments to a server, so in this mode the server relays ciphertext only and never receives the plaintext or the share key. This mode requires JavaScript and WebAssembly: it is unavailable in Tor Browser at Safest level, and its guarantees apply only to files that were actually uploaded through this path (files uploaded in no-JS mode were encrypted by the server).
 
@@ -139,7 +197,7 @@ The erasure coding uses binary XOR masks over **GF(2)**, not Reed-Solomon or GF(
 
 The frontend reads the exact server upload ceiling and rejects files above it before buffering or encrypting. The anonymous `/upload-raw` endpoint limits each encrypted shard separately and is not a per-user storage quota. OnionGuard, network rate limiting and proxy resource limits are required to mitigate abuse.
 
-When the **No-JS Mode** button is selected, the form submits natively to the server. The Zero-Knowledge button enables local WebAssembly encryption.
+No-JS server processing is selected by the configured **Tor service origin**, not by an upload mode button. A clearnet page with JavaScript disabled cannot submit a plaintext file as a fallback.
 
 ## Storage and privacy model
 
@@ -147,7 +205,7 @@ There is no application database, account system, cookie-based file registry, or
 
 In both modes the stored object is ciphertext, identified by the SHA-256 of the encrypted bytes. Blossom relays receive opaque `application/octet-stream` blobs; they never receive file names or plaintext contents.
 
-The two modes differ in who holds the key and who can read the file:
+The browser-side and Tor server-side modes differ in who holds the key and who can read the file; GitHub Pages is a third deployment option for the same browser-side format:
 
 | | No-JS mode | Zero-Knowledge (Wasm) mode |
 | --- | --- | --- |
@@ -157,11 +215,13 @@ The two modes differ in who holds the key and who can read the file:
 | Server sees the share key | Yes | No — fragments are not sent to the server |
 | Requires JavaScript | No | Yes |
 
+The [GitHub Pages edition](docs/GITHUB_PAGES.md) uses browser-side encryption with the share format `view.html?hash=<hash>#<key>`, but has no Go server, CAPTCHA or proxy at runtime.
+
 What the design does and does not give you:
 
 - **No-JS mode is not zero-knowledge.** The application server generates the key, encrypts the upload, and decrypts the file again to render previews and stream downloads; decrypted copies sit in an ephemeral on-disk cache for a few minutes. Whoever operates (or compromises) the server can read the file and the key.
 - **Zero-Knowledge mode limits the server to ciphertext.** With successful direct transfers the encrypted file bytes go from browser to Blossom without passing through insomniaXXX; otherwise the server proxies encrypted bytes and can observe their size, hashes, and request timing. In neither case does it receive the plaintext or the share key, which stays in the browser's URL fragment. During OnionGuard CAPTCHA navigation it may temporarily be held in per-tab sessionStorage, then removed when the link is restored. This protects file content and the key from the server — not from anything else.
-- **Neither mode hides metadata.** Your IP address (or Tor circuit), request timing, ciphertext size, and blob hash are visible to the application server and to every Blossom instance that serves the blob. This project makes no anonymity or traffic-analysis guarantee; use Tor or a VPN if that is part of your threat model.
+- **Encryption does not hide all metadata.** Direct Blossom transfers expose your connection's IP address (or Tor exit), timing, ciphertext size and blob hash to the involved relays. The Go-hosted proxy changes which endpoints see the connection, but not the fact that traffic metadata exists. This project makes no anonymity or traffic-analysis guarantee.
 - **Share links are bearer secrets.** Anyone holding the complete link — key included — can decrypt the file. There are no accounts, hence no access list and no revocation: a link keeps working until the blob disappears from every configured relay, and copies already made by readers cannot be recalled.
 - **Promised:** stored bytes are encrypted with ChaCha20-Poly1305 before they reach Blossom in both modes, and no server-side database of files, keys, or users exists. **Not promised:** that the server operator cannot read files uploaded in no-JS mode, that metadata is hidden, or that any particular deployment's operator is trustworthy — review the code or run your own instance.
 
@@ -179,7 +239,7 @@ The current `fiatjaf.com/nostr` API generates an ephemeral signing key with `nos
 
 ## UI and upload compatibility
 
-The OnionGuard wait room uses a standard HTML `<meta http-equiv="refresh">`, so the five-second proof-of-patience step advances automatically without JavaScript. OnionGuard documents the same zero-JavaScript mechanism. ([OnionGuard](https://github.com/ihatemyfcklife/onionguard))
+The OnionGuard wait room uses HTML `<meta http-equiv="refresh">` and a JavaScript refresh fallback. Browsers can block automatic refreshes when JavaScript is disabled; a manual continuation link remains available. ([OnionGuard](https://github.com/ihatemyfcklife/onionguard))
 
 The upload authorization follows current Blossom BUD-11 requirements: the `24242` token contains `t=upload`, a five-minute `expiration`, the target `server`, and an `x` tag scoped to the uploaded SHA-256 blob. Blossom currently requires the `x` tag for `PUT /upload`. ([BUD-11](https://github.com/hzrd149/blossom/blob/master/buds/11.md))
 
@@ -214,7 +274,9 @@ RLNC shard uploads now use **three concurrent workers** (never more than
 four), return hashes in original manifest order regardless of which shard
 finishes first, and refuse to publish a share link when any shard upload
 fails. Every shard and final encrypted manifest still requires two valid
-independent relay receipts (or the existing server proxy fallback).
+independent relay receipts in direct mode. The encrypted proxy is a
+separately selected transport in the Go-hosted clearnet edition, not an
+automatic fallback or a feature of GitHub Pages.
 
 The browser transport remembers recent CORS/relay failures during the page
 session and prioritizes healthy configured HTTPS relays; it does **not**
@@ -228,43 +290,46 @@ retrieve **ciphertext only** directly between the browser and up to three
 explicitly configured HTTPS Blossom relays. This removes the main application
 backend from the file-byte path **when those relays permit CORS**.
 
-- The browser encrypts and computes SHA-256 locally. `POST /direct-upload-auth`
-  returns per-relay, single-hash **short-lived Nostr BUD-02 authorizations**.
-  No ciphertext bytes, plaintext or share keys are sent to this endpoint.
+- The browser encrypts, computes SHA-256 and **signs hash-scoped Nostr
+  upload authorizations locally in WASM**. The Go backend is not needed to
+  generate those signatures; no plaintext or share keys enter Blossom requests.
 - The browser PUTs encrypted bytes to the relays using its own network
   connection. At least **two distinct hosts must return a matching SHA-256
-  receipt** before a share link is produced; otherwise the browser retries
-  via the existing same-origin `/upload-raw` proxy.
+  receipt** before a share link is produced. Failed direct uploads do **not**
+  silently retry through the Go proxy; the user must explicitly select it.
+  GitHub Pages does not have a proxy.
 - Browser downloads try `GET https://<configured-relay>/<hash>` with
   `credentials: omit`, disabled redirects and `referrerPolicy: no-referrer`.
   The full downloaded ciphertext is checked against the expected SHA-256 in
-  WASM **before decryption**. Corrupted/non-CORS/slow relay responses fall
-  back to `/d/<hash>?cipher=1`, where the server verifies storage too.
+  WASM **before decryption**. Failed direct downloads report an error; the
+  Go-hosted app's encrypted `/d/<hash>?cipher=1` proxy is available only
+  when explicitly selected. GitHub Pages cannot proxy downloads.
 - New uploads use RLNC shards and an encrypted manifest at every size. Legacy
   monolithic blobs are still downloadable. Server-side No-JS mode encrypts
   locally on the server and also distributes every new file as RLNC shards.
 - **Privacy trade-off:** direct requests expose a client's IP or Tor exit
   address and encrypted blob hash to the relay. Users can tick **Private relay
   access** to proxy via insomniaXXX instead; this preference is stored only
-  in same-tab `sessionStorage`. **New recipients opening a share link
-  default to proxy mode**, so a direct request cannot disclose an address
-  before consent; they can uncheck to opt in to direct downloads. Uploaders
-  see the disclosure before submitting a WASM upload (direct by default).
+  in same-tab `sessionStorage`. **New recipients also default to direct
+  downloads**. They can select proxy mode before retrying; be aware a
+  direct request may already have revealed connection metadata. Uploaders
+  see the disclosure before submitting a WASM upload.
   The browser-to-relay link never contains the share/decryption key. Users
   needing the strongest anonymity should choose the proxy, or use Tor and
   trusted relays.
 - Relay support is not guaranteed: **CORS must allow the site origin, PUT/GET,
   `Authorization`, `X-SHA-256`, and `Content-Type`**; relays must accept
   hash-scoped ephemeral BUD-02 upload authorizations and expose upload JSON
-  receipts. Ordinary public relays may refuse some or all of these requests,
-  in which case files still transfer through insomniaXXX.
+  receipts. Public relays may refuse some or all requests. In that case,
+  the user must opt into the encrypted proxy on Go-hosted clearnet or use
+  other CORS-compatible relays for the static edition.
 - `/direct-relays` deliberately returns configured seeds only, never arbitrary
   third-party URLs embedded in a manifest or discovered via Nostr. Use at
   least **two distinct trusted HTTPS relay hosts** in production.
-- Transport authorization goes through OnionGuard. Rate-limit that endpoint
-  at the reverse proxy; do not log its Authorization-bearing response.
-  Direct relay traffic bypasses your reverse-proxy rate limits and relies on
-  the storage relays' own restrictions.
+- Go-hosted application endpoints are protected by OnionGuard and should
+  also be rate-limited at the reverse proxy. Direct relay traffic bypasses
+  those controls and relies on each storage relay's own restrictions;
+  GitHub Pages has no OnionGuard gate.
 
 This feature reduces backend transfer saturation **only for successful direct
 traffic**. It is not a guarantee of 1,000 simultaneously working transfers:
@@ -407,4 +472,4 @@ Copyright 2026 ihatemyfcklife.
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License in the repository at [LICENSE](LICENSE).
 
 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
-<!-- release smoke test -->
+
