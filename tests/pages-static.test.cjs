@@ -99,18 +99,18 @@ function harness({offline=false,failedRelays=[]}={}) {
     'static relay page must reuse the regular relay card');
   assert(relaysPage.includes('class="relays-table" role="grid"'),
     'static relay page must reuse the desktop table');
-  const match=cfg.match(/^window\\.InsomniaStatic = Object\\.freeze\\((.*)\\);/s);
+  const match=cfg.match(/^window\.InsomniaStatic = Object\.freeze\((.*)\);/s);
   assert(match,'the static site must include its trusted Blossom config');
   const activeRelays=JSON.parse(match[1]).relays;
   assert(activeRelays.length >= 2 && activeRelays.length <= 12);
   assert.equal((relaysPage.match(/class="relay-row"/g)||[]).length,
-    activeRelays.length + (relaysPage.match(/>Directory<\\/small>/g)||[]).length,
+    activeRelays.length + (relaysPage.match(/>Directory<\/small>/g)||[]).length,
     'every active or directory relay must have a responsive table row');
-  assert.equal((relaysPage.match(/>Configured<\\/small>/g)||[]).length,
+  assert.equal((relaysPage.match(/>Configured<\/small>/g)||[]).length,
     activeRelays.length,'every configured storage relay must appear in the table');
-  assert((relaysPage.match(/>Directory<\\/small>/g)||[]).length >= 3,
+  assert((relaysPage.match(/>Directory<\/small>/g)||[]).length >= 3,
     'the public Blossom directory must display multiple additional services');
-  assert.equal((relaysPage.match(/class="relay-badge unchecked">Not checked<\\/span>/g)||[]).length,
+  assert.equal((relaysPage.match(/class="relay-badge unchecked">Not checked<\/span>/g)||[]).length,
     (relaysPage.match(/class="relay-row"/g)||[]).length,
     'never claim an unmonitored Blossom server is online');
   assert(relaysPage.includes('Configured storage relays and public Blossom directory.'));
