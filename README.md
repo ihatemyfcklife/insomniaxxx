@@ -163,7 +163,7 @@ environment yourself. `-ExecutionPolicy Bypass` applies only to this invocation.
 
 ## Frontend
 
-The interface is intentionally minimal: one page with two possible execution paths. Which one runs depends on whether JavaScript and WebAssembly are available in the browser. Pico CSS is bundled with the binary and served locally from `/static/`:
+The interface is intentionally minimal. The **configured service origin** determines whether the Go-hosted application runs the Tor server-processing mode or clearnet browser-only encryption; the separate static edition uses the same browser-side WASM code on GitHub Pages. The clearnet upload stays disabled if JavaScript or WASM cannot start. Pico CSS is bundled with the Go binary and served locally from `/static/`:
 
 ```html
 <link rel="stylesheet" href="/static/pico.min.css">
@@ -464,6 +464,29 @@ Before production traffic, all of the following should be evidenced for the exac
 5. Review any vulnerability scan findings and obtain an independent security review appropriate to the threat model before advertising this service as secure or anonymous.
 
 CI and code-level tests do not prove that a particular deployment is safe. A release is not production-approved until the staging checks, resource sizing, logging controls, and actual HTTPS deployment have been verified.
+
+## Repository About and topics
+
+The recommended GitHub **About** description is:
+
+> Privacy-focused file sharing with Go/WASM, RLNC and Blossom relays. Zero-Knowledge browser encryption, Tor No-JS and GitHub Pages.
+
+Set the repository website to
+[the GitHub Pages edition](https://ihatemyfcklife.github.io/insomniaxxx/).
+Discovery tags are maintained in
+[.github/repository-topics.json](.github/repository-topics.json).
+
+Repository administrators can apply the description, website and topics
+through the authenticated [GitHub CLI](https://cli.github.com/):
+
+```sh
+bash scripts/update-repository-about.sh
+```
+
+These GitHub repository settings are **not** changed by a README commit;
+the command needs repository administration privileges. Alternatively,
+edit the About description, website and topics using the repository's
+**About → gear icon** in the GitHub interface.
 
 ## License
 
