@@ -70,7 +70,12 @@ try {
                 Invoke-Go build -trimpath "-ldflags=-s -w -X anonblossom/internal/web.Version=$version" -o bin/anonblossom.exe ./cmd/anonblossom
             } finally { $env:CGO_ENABLED = $oldCGO }
         }
-        'run' { Build-Wasm; Import-DotEnv; Invoke-Go run ./cmd/anonblossom }
+        'run' {
+            Build-Wasm
+            Import-DotEnv
+            $version = Get-Version
+            Invoke-Go run "-ldflags=-X anonblossom/internal/web.Version=$version" ./cmd/anonblossom
+        }
         'docker-build' {
             $version = Get-Version
             & docker build --build-arg "VERSION=$version" -t anonblossom:local .
