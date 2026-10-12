@@ -21,7 +21,7 @@ function mockElement() {
   };
 }
 
-async function createPage({size, maxSize, wasmFailure=false, fileSelected=true, encryptFailure=false}) {
+async function createPage({size, maxSize, wasmFailure=false, fileSelected=true, encryptFailure=false, staticMode=false}) {
   const calls = []; const alerts = [];
   let readCount = 0, encryptCount = 0, qrText = null;
   const form = mockElement();
@@ -52,7 +52,12 @@ async function createPage({size, maxSize, wasmFailure=false, fileSelected=true, 
       createElement() { return mockElement(); },
       createTextNode(text) { return { textContent: text }; }
     },
-    window: {location:{origin:'https://files.example'}, InsomniaDirect:{
+    window: {
+      location: staticMode
+        ? {origin:'https://someone.github.io',href:'https://someone.github.io/insomniaxxx/'}
+        : {origin:'https://files.example'},
+      InsomniaStatic: staticMode ? {enabled:true,relays:['https://one.example','https://two.example']} : undefined,
+      InsomniaDirect:{
       async uploadEncrypted(bytes, hash) {calls.push({url:'direct-relay-upload'}); return {hash};}
     }},
     TextEncoder,
@@ -63,7 +68,7 @@ async function createPage({size, maxSize, wasmFailure=false, fileSelected=true, 
       return Array.from({length:n},()=>new Uint8Array(80));
     },
     wasmEncryptWithKey(){return {ciphertext:new Uint8Array([6,7]),hash:'a'.repeat(64)};},
-    URL: {createObjectURL() {return 'blob:local-qr';}},
+    URL: class extends URL { static createObjectURL() {return 'blob:local-qr';} },
     alert(text) {alerts.push(text);},
     Go: class {constructor(){this.importObject={};} run(){}},
     WebAssembly: {async instantiate(){if(wasmFailure) throw new Error("failed"); return {instance:{}};}},
@@ -75,7 +80,7 @@ async function createPage({size, maxSize, wasmFailure=false, fileSelected=true, 
     wasmGenerateQR(share){qrText=share;return new Uint8Array([137,80,78,71]);},
     async fetch(url,options) {
       calls.push({url,options});
-      if(url==='/static/app.wasm')return {ok:true,async arrayBuffer(){return new ArrayBuffer(0);}};
+      if(url==='/static/app.wasm' || url==='./static/app.wasm')return {ok:true,async arrayBuffer(){return new ArrayBuffer(0);}};
       if(url==='/upload-raw')return {ok:true,async json(){return {hash:'a'.repeat(64)};}};
       throw new Error('unexpected network request '+url);
     }
@@ -132,5 +137,17 @@ async function createPage({size, maxSize, wasmFailure=false, fileSelected=true, 
     'a tiny file must upload six RLNC shards and one encrypted manifest');
   assert(!zk.calls.some(x=>x.url.includes('/qr?')||x.url.includes('secret-fragment')),
     'share keys must not appear in network URLs');
-  console.log('Frontend upload-limit, loading-state, and zero-knowledge QR network checks passed');
+  const pages=await createPage({size:42,maxSize:64*1024*1024,staticMode:true});
+  assert.equal(pages.ids.proxyOptions.hidden,true,'static site must not offer an unavailable Go proxy');
+  const staticURL=pages.stats().qrText;
+  // renderReady is invoked during upload; wait for the workflow to settle.
+  assert.equal(staticURL,null,'ready URL is generated when static upload is submitted');
+  await pages.form.onsubmit({preventDefault(){}});
+  const staticShare=pages.stats().qrText;
+  assert(staticShare?.startsWith('https://someone.github.io/insomniaxxx/view.html?hash='));
+  assert(staticShare?.includes('#secret-fragment'));
+  assert(!staticShare.includes('/d/'),'static links must use a real static route');
+  assert(!pages.calls.some(c=>c.url==='/direct-relays'||c.url==='/upload-raw'));
+
+  console.log('Frontend upload-limit, static Pages share URLs, loading-state, and ZK network checks passed');
 })().catch(err=>{console.error(err);process.exitCode=1;});
