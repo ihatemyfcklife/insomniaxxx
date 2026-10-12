@@ -17,13 +17,38 @@ website has been built.
    `https://ihatemyfcklife.github.io/insomniaxxx/`
    after the first successful Pages deployment.
 
-The default configured HTTPS storage origins are
-`https://cdn.hzrd149.com`, `https://nostr.download` and
-`https://blossom.poster.place`. You may override them by creating the GitHub
-Actions **repository variable** `PAGES_BLOSSOM_RELAYS` containing a
-comma-separated list of **2 or 3 trusted independent HTTPS origins**.
-The exporter validates that configuration and fails the build if it is unsafe
-or invalid. These are public destinations, **not private keys**.
+### Blossom storage relays and public directory
+
+The GitHub Pages edition now has **five configured storage candidates** by
+default, in this order:
+
+- `https://cdn.hzrd149.com`
+- `https://nostr.download`
+- `https://blossom.poster.place`
+- `https://cdn.sovbit.host`
+- `https://cdn.sebdev.io`
+
+The **Relays** page also displays a reference-only directory of public Blossom
+services: `blossom.primal.net`, `blossom.nostr.build`,
+`cdn.satellite.earth`, `cdn.divine.video`, `blossom.azzamo.media`
+and `24242.io`. These directory entries are **not transfer destinations**
+unless an operator explicitly configures them as such. Some offer media-only,
+restricted or paid uploads and might reject insomniaXXX's opaque
+`application/octet-stream` ciphertext. Listing a public endpoint does not
+mean it is currently online, supports browser CORS, or accepts uploads.
+
+Configure the actual storage list by setting the GitHub Actions repository
+variable **`PAGES_BLOSSOM_RELAYS`**, with a comma-separated list of **2 to
+12 independent trusted HTTPS origins**. When this variable exists, it
+**replaces**, rather than extends, the default list. The exporter validates
+the origins and fails for duplicates, invalid URLs or unsupported counts.
+Do not add arbitrary third-party destinations: direct transfers reveal the
+browser's network address and ciphertext hashes to the contacted relays.
+An upload still requires at least two valid receipts from independent hosts;
+more configured servers does not ensure greater availability or retention.
+
+The public directory is for discovery only. No background relay health checks,
+automatic server discovery or silent uploads to directory entries occur.
 
 ### Local build
 
