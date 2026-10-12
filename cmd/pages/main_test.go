@@ -7,6 +7,19 @@ import (
 	"anonblossom/internal/web"
 )
 
+func TestResolvePageVersionRequiresReleaseTag(t *testing.T) {
+	for _, valid := range []string{"v0.2.34", "v10.0.1"} {
+		if got, err := resolveVersion(valid); err != nil || got != valid {
+			t.Fatalf("valid version rejected: got %q, err %v", got, err)
+		}
+	}
+	for _, invalid := range []string{"dev", "main", "deadbeef", "v0.2.34<svg>", "v0.2", "v1.2.3-rc1"} {
+		if _, err := resolveVersion(invalid); err == nil {
+			t.Fatalf("invalid static version was accepted: %q", invalid)
+		}
+	}
+}
+
 func TestParseRelaysRejectsUnsafeOrDuplicateHosts(t *testing.T) {
 	good := "https://one.example,https://two.example,https://three.example"
 	got, err := parseRelays(good)
@@ -30,6 +43,9 @@ func TestParseRelaysRejectsUnsafeOrDuplicateHosts(t *testing.T) {
 }
 
 func TestStaticPagesHaveBrowserOnlyPaths(t *testing.T) {
+	oldVersion := web.Version
+	web.Version = "v9.8.7"
+	t.Cleanup(func() { web.Version = oldVersion })
 	pages, err := web.NewPages()
 	if err != nil {
 		t.Fatal(err)
@@ -48,6 +64,7 @@ func TestStaticPagesHaveBrowserOnlyPaths(t *testing.T) {
 		`action="./"`,
 		`id="submitBtn" class="btn-action" disabled`,
 		`64.0 MiB`,
+		`<span class="app-version">v9.8.7</span>`,
 		"Direct Blossom transfers require CORS",
 	} {
 		if !strings.Contains(home, required) {
@@ -74,6 +91,10 @@ func TestStaticPagesHaveBrowserOnlyPaths(t *testing.T) {
 		t.Fatal("static viewer must not depend on proxy or domain-root paths")
 	}
 	for _, page := range []string{home, view} {
+		if !strings.Contains(page, `<span class="app-version">v9.8.7</span>`) ||
+			strings.Contains(page, `<span class="app-version">dev</span>`) {
+			t.Fatal("static exporter must render the actual version, never dev")
+		}
 		if !strings.Contains(page, `http-equiv="Content-Security-Policy"`) {
 			t.Fatal("static page has no CSP")
 		}
