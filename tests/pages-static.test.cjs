@@ -64,7 +64,21 @@ function harness({offline=false}={}) {
   }
   const index=fs.readFileSync(path.join(dist,'index.html'),'utf8');
   const viewer=fs.readFileSync(path.join(dist,'view.html'),'utf8');
+  const relaysPage=fs.readFileSync(path.join(dist,'relays.html'),'utf8');
   const cfg=fs.readFileSync(path.join(dist,'static/config.js'),'utf8');
+
+  const version=index.match(/<span class="app-version">(v[0-9]+\.[0-9]+\.[0-9]+)<\/span>/)?.[1];
+  assert(version, 'static site must display a real released version instead of dev');
+  for (const page of [index, viewer, relaysPage]) {
+    assert(page.includes('<span class="app-version">'+version+'</span>'),
+      'all exported pages must show the same release version');
+    for (const repo of ['insomniaxxx', 'badcrypt', 'badrlnc', 'onionguard']) {
+      assert(page.includes('https://github.com/ihatemyfcklife/'+repo),
+        'static footer missing source link for '+repo);
+    }
+    assert(!page.includes('>PGP</a>') && !page.includes('>Contact</a>') &&
+      !page.includes('>ads</a>'), 'old placeholder links must not ship');
+  }
   assert(index.includes('src="./static/config.js"'));
   assert(index.includes('href="./relays.html"'));
   assert(!index.includes('id="proxyOnly"') && !viewer.includes('id="proxyOnly"'));
