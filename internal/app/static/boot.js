@@ -1,12 +1,13 @@
 // Progressive enhancement: local (Zero-Knowledge) encryption when Wasm loads.
 // This script is served only on clearnet. Failure never enables plaintext POST.
+const staticSite = !!(window.InsomniaStatic && window.InsomniaStatic.enabled);
 const localUploadForm = document.getElementById("uploadForm");
 if (localUploadForm) localUploadForm.onsubmit = (event) => event.preventDefault();
 if (typeof WebAssembly !== "undefined") {
   (async function () {
     try {
       const go = new Go();
-      const resp = await fetch("/static/app.wasm");
+      const resp = await fetch(staticSite ? "./static/app.wasm" : "/static/app.wasm");
       if (!resp.ok) {
         throw new Error("WASM bundle unavailable");
       }
@@ -24,7 +25,7 @@ if (typeof WebAssembly !== "undefined") {
     // The proxy preference is useful only when browser-side encryption runs.
     // Keep it hidden for disabled JavaScript and failed WASM startup.
     const proxyOptions = document.getElementById("proxyOptions");
-    if (proxyOptions) proxyOptions.hidden = false;
+    if (proxyOptions && !staticSite) proxyOptions.hidden = false;
 
     const status = document.getElementById("wasmStatus");
     if (status) {
@@ -148,7 +149,7 @@ if (typeof WebAssembly !== "undefined") {
         let mascot = submitBtn.querySelector("img.upload-btn-mascot");
         if (!mascot) {
           mascot = document.createElement("img");
-          mascot.src = "/static/xxx.png";
+          mascot.src = staticSite ? "./static/xxx.png" : "/static/xxx.png";
           mascot.alt = "";
           mascot.className = "upload-btn-mascot";
           mascot.width = 1024;
@@ -271,10 +272,15 @@ if (typeof WebAssembly !== "undefined") {
         // embedded by a third party in an encrypted manifest.
         let relays = [];
         try {
-          const rResp = await fetch("/direct-relays");
-          if (rResp.ok) {
-            const info = await rResp.json();
-            if (info && Array.isArray(info.relays)) relays = info.relays;
+          if (staticSite) {
+            relays = Array.isArray(window.InsomniaStatic.relays)
+              ? window.InsomniaStatic.relays : [];
+          } else {
+            const rResp = await fetch("/direct-relays");
+            if (rResp.ok) {
+              const info = await rResp.json();
+              if (info && Array.isArray(info.relays)) relays = info.relays;
+            }
           }
         } catch (_) {}
 
@@ -313,7 +319,14 @@ if (typeof WebAssembly !== "undefined") {
         const result = window.InsomniaDirect
           ? await window.InsomniaDirect.uploadEncrypted(encManifest.ciphertext, manifestHash)
           : await uploadViaProxy(encManifest.ciphertext, manifestHash);
-        const shareURL = window.location.origin + "/d/" + result.hash + "#" + enc.key;
+        const shareURL = staticSite
+          ? (() => {
+              const url = new URL("./view.html", window.location.href);
+              url.searchParams.set("hash", result.hash);
+              url.hash = enc.key;
+              return url.href;
+            })()
+          : window.location.origin + "/d/" + result.hash + "#" + enc.key;
         renderReady(file.name, file.size, result.hash, enc.key, shareURL);
 
       } catch (err) {
