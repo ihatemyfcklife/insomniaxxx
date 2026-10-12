@@ -62,6 +62,7 @@ jobs:
           node --check internal/app/static/guard-wait.js
           node --check tests/zk-fragment.test.cjs
           node --check tests/guard-wait.test.cjs
+          node --check tests/pages-static.test.cjs
           node tests/zk-fragment.test.cjs
           node tests/guard-wait.test.cjs
           node tests/frontend.test.cjs
@@ -85,6 +86,11 @@ jobs:
           GOOS=js GOARCH=wasm go build -trimpath -ldflags='-s -w' -o internal/app/static/app.wasm ./cmd/wasm
           test -s internal/app/static/app.wasm
           node tests/wasm-auth-smoke.cjs
+
+      - name: Build and test GitHub Pages static edition
+        run: |
+          go run ./cmd/pages -out dist/pages
+          node tests/pages-static.test.cjs
 
       - name: Build Linux server binary
         env:
