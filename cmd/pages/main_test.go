@@ -91,6 +91,13 @@ func TestStaticPagesHaveBrowserOnlyPaths(t *testing.T) {
 		t.Fatal("static viewer must not depend on proxy or domain-root paths")
 	}
 	for _, page := range []string{home, view} {
+		if !strings.Contains(page, `href="https://ihatemyfcklife.github.io/insomniaxxx/" class="logo-link"`) {
+			t.Fatal("static page logo must point to the GitHub Pages project homepage")
+		}
+		if strings.Contains(page, `href="/" class="logo-link"`) ||
+			strings.Contains(page, `href="./" class="logo-link"`) {
+			t.Fatal("static page logo must not point to a relative or domain-root path")
+		}
 		if !strings.Contains(page, `<span class="app-version">v9.8.7</span>`) ||
 			strings.Contains(page, `<span class="app-version">dev</span>`) {
 			t.Fatal("static exporter must render the actual version, never dev")
@@ -107,12 +114,16 @@ func TestStaticRelaysDoNotClaimLiveStatus(t *testing.T) {
 		"Configured Blossom Relays",
 		"availability and browser CORS permissions are not guaranteed",
 		`href="./"`,
+		`href="https://ihatemyfcklife.github.io/insomniaxxx/" class="logo-link"`,
 		`href="https://one.example"`,
 		`href="https://two.example"`,
 	} {
 		if !strings.Contains(page, required) {
 			t.Fatalf("static relay page missing %q", required)
 		}
+	}
+	if strings.Contains(page, `href="/" class="logo-link"`) {
+		t.Fatal("relay page logo must not navigate to the domain root")
 	}
 	if strings.Contains(page, "Auto-discovered via Nostr") || strings.Contains(page, "Online</span>") {
 		t.Fatal("static site must not advertise server-monitored relay status")
