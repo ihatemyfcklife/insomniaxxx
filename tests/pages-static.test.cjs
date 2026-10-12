@@ -5,12 +5,13 @@ const path = require('node:path');
 const {createHash} = require('node:crypto');
 
 const transport = fs.readFileSync('internal/app/static/direct-blossom.js', 'utf8');
-const relays = ['https://one.example', 'https://two.example', 'https://three.example'];
+const relays = ['https://one.example', 'https://two.example', 'https://three.example',
+  'https://four.example', 'https://five.example'];
 const data = new Uint8Array([0x41,0x42,0x53,0x48,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]);
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const digest = sha(data);
 
-function harness({offline=false}={}) {
+function harness({offline=false,failedRelays=[]}={}) {
   const calls = [];
   const root = {
     InsomniaStatic: {enabled:true,relays},
@@ -22,7 +23,8 @@ function harness({offline=false}={}) {
   const fetch = async (url, opts={}) => {
     calls.push({url,opts});
     assert(url.startsWith('https://'), 'GitHub Pages must not invoke Go endpoint: '+url);
-    if (offline) throw new TypeError('CORS denied');
+    if (offline || failedRelays.some(relay=>url.startsWith(relay+'/')))
+      throw new TypeError('CORS denied');
     if (url.endsWith('/upload')) {
       assert.equal(opts.method,'PUT');
       assert.equal(opts.credentials,'omit');
@@ -48,6 +50,15 @@ function harness({offline=false}={}) {
   assert.deepEqual(Array.from(await active.root.InsomniaDirect.downloadEncrypted(digest)),Array.from(data));
   assert(active.calls.every(c=>relays.some(r=>c.url.startsWith(r+'/'))));
   assert(!active.calls.some(c=>c.url.includes('#secret') || c.url.includes('insomniaxxx/view.html')));
+
+  // Static transfers must be able to fail over beyond the old three-relay cap,
+  // without ever contacting a directory-only server.
+  const fallback=harness({failedRelays:relays.slice(0,3)});
+  assert.deepEqual({...await fallback.root.InsomniaDirect.uploadEncrypted(data,digest)},
+    {hash:digest,direct:true});
+  assert(fallback.calls.some(c=>c.url.startsWith(relays[4]+'/upload')));
+  assert(fallback.calls.every(c=>relays.some(relay=>c.url.startsWith(relay+'/'))));
+  assert.deepEqual(Array.from(await fallback.root.InsomniaDirect.downloadEncrypted(digest)),Array.from(data));
 
   const down=harness({offline:true});
   await assert.rejects(down.root.InsomniaDirect.downloadEncrypted(digest),/this static site has no proxy/);
@@ -88,12 +99,23 @@ function harness({offline=false}={}) {
     'static relay page must reuse the regular relay card');
   assert(relaysPage.includes('class="relays-table" role="grid"'),
     'static relay page must reuse the desktop table');
-  assert.equal((relaysPage.match(/class="relay-row"/g)||[]).length,3,
-    'the default three configured relays must each render a responsive row');
-  assert.equal((relaysPage.match(/class="relay-badge unchecked">Not checked<\/span>/g)||[]).length,3,
-    'static relays must show unknown status, not pretend to be online or offline');
-  assert(relaysPage.includes('Configured HTTPS Blossom storage destinations.'));
-  assert(relaysPage.includes('status, latency and uptime are not monitored here'));
+  const match=cfg.match(/^window\\.InsomniaStatic = Object\\.freeze\\((.*)\\);/s);
+  assert(match,'the static site must include its trusted Blossom config');
+  const activeRelays=JSON.parse(match[1]).relays;
+  assert(activeRelays.length >= 2 && activeRelays.length <= 12);
+  assert.equal((relaysPage.match(/class="relay-row"/g)||[]).length,
+    activeRelays.length + (relaysPage.match(/>Directory<\\/small>/g)||[]).length,
+    'every active or directory relay must have a responsive table row');
+  assert.equal((relaysPage.match(/>Configured<\\/small>/g)||[]).length,
+    activeRelays.length,'every configured storage relay must appear in the table');
+  assert((relaysPage.match(/>Directory<\\/small>/g)||[]).length >= 3,
+    'the public Blossom directory must display multiple additional services');
+  assert.equal((relaysPage.match(/class="relay-badge unchecked">Not checked<\\/span>/g)||[]).length,
+    (relaysPage.match(/class="relay-row"/g)||[]).length,
+    'never claim an unmonitored Blossom server is online');
+  assert(relaysPage.includes('Configured storage relays and public Blossom directory.'));
+  assert(relaysPage.includes('Directory entries are reference-only'));
+  assert(relaysPage.includes('Only entries marked Configured are used for direct transfers.'));
   assert(relaysPage.includes('<th scope="col">Source</th>') &&
          relaysPage.includes('<th scope="col">Last Check</th>'));
   assert(!relaysPage.includes('Auto-discovered via Nostr') &&
