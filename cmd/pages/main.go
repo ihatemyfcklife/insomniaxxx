@@ -21,6 +21,7 @@ import (
 
 const defaultRelays = "https://cdn.hzrd149.com,https://nostr.download,https://blossom.poster.place"
 const maxUploadBytes = 64 << 20
+const githubPagesHomeURL = "https://ihatemyfcklife.github.io/insomniaxxx/"
 
 var staticAssets = []string{
 	"app.wasm", "wasm_exec.js", "pico.min.css", "favicon.ico",
@@ -141,8 +142,16 @@ func removeHTMLBlock(page, marker string) (string, error) {
 	return page[:start] + page[start+end+len("</div>"):], nil
 }
 
+// The shared Go template links the logo to "/". Point it at the
+// GitHub Pages project homepage in every statically exported page.
+func staticLogoHome(page string) string {
+	return strings.Replace(page, `href="/" class="logo-link"`,
+		`href="`+githubPagesHomeURL+`" class="logo-link"`, 1)
+}
+
 func makeStatic(page string) string {
 	// Project Pages live at /<repository>/, never at the domain root.
+	page = staticLogoHome(page)
 	page = strings.ReplaceAll(page, "/static/", "./static/")
 	page = strings.ReplaceAll(page, `href="/"`, `href="./"`)
 	page = strings.ReplaceAll(page, `href="/favicon.ico"`, `href="./static/favicon.ico"`)
@@ -178,7 +187,7 @@ func renderRelayPage(relays []string) string {
 <p><a href="./" class="view-relays-link">Back to upload</a></p>
 %s
 </main></body></html>`, web.PicoCSP, web.PicoThemeCSS,
-		strings.ReplaceAll(web.LogoHTML(), "/static/", "./static/"), entries.String(), web.FooterHTML())
+		staticLogoHome(strings.ReplaceAll(web.LogoHTML(), "/static/", "./static/")), entries.String(), web.FooterHTML())
 }
 
 func build(out string, relays []string) error {
