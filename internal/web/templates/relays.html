@@ -13,7 +13,7 @@
     {{template "logo" .}}
     <header>
       <h1>Blossom Relays</h1>
-      <p class="muted">{{if .Static}}Configured HTTPS Blossom storage destinations. Availability and browser CORS are not checked on this static site.{{else}}Active storage instances discovered and monitored across Nostr.{{end}}</p>
+      <p class="muted">{{if .Static}}Configured storage relays and public Blossom directory. Directory entries are reference-only and are not used for transfers. Availability and browser CORS are not checked on this static site.{{else}}Active storage instances discovered and monitored across Nostr.{{end}}</p>
     </header>
 
     <article class="relays-card">
@@ -73,7 +73,7 @@
     </div>
 
     <div class="relays-note">
-      <small class="muted">{{if .Static}}Relays are configured at build time. Direct transfers require browser CORS and accepting uploads; status, latency and uptime are not monitored here.{{else}}Auto-discovered via Nostr BUD-04 (kind 10063). Healthy instances are used for storage redundancy.{{end}}</small>
+      <small class="muted">{{if .Static}}Only entries marked Configured are used for direct transfers. Directory entries may require payment or accept media only. Browser CORS, availability and upload policies are not monitored here.{{else}}Auto-discovered via Nostr BUD-04 (kind 10063). Healthy instances are used for storage redundancy.{{end}}</small>
     </div>
 
     {{template "footer" .}}
