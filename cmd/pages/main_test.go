@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -22,10 +23,24 @@ func TestResolvePageVersionRequiresReleaseTag(t *testing.T) {
 }
 
 func TestParseRelaysRejectsUnsafeOrDuplicateHosts(t *testing.T) {
-	good := "https://one.example,https://two.example,https://three.example"
+	good := "https://one.example,https://two.example,https://three.example,https://four.example"
 	got, err := parseRelays(good)
-	if err != nil || len(got) != 3 {
+	if err != nil || len(got) != 4 {
 		t.Fatalf("valid independent HTTPS relay list rejected: %v", err)
+	}
+	defaults, err := parseRelays(defaultRelays)
+	if err != nil || len(defaults) < 5 {
+		t.Fatalf("expanded default Blossom storage list invalid: %v", err)
+	}
+	if len(publicBlossomDirectory) < 5 {
+		t.Fatal("public directory must contain multiple additional Blossom services")
+	}
+	var dozen []string
+	for i := 0; i < maxStaticStorageRelays; i++ {
+		dozen = append(dozen, fmt.Sprintf("https://relay-%d.example", i))
+	}
+	if got, err := parseRelays(strings.Join(dozen, ",")); err != nil || len(got) != maxStaticStorageRelays {
+		t.Fatalf("maximum supported static relay list invalid: %v", err)
 	}
 	for _, raw := range []string{
 		"http://one.example,https://two.example",
@@ -34,7 +49,7 @@ func TestParseRelaysRejectsUnsafeOrDuplicateHosts(t *testing.T) {
 		"https://user:password@one.example,https://two.example",
 		"https://one.example,https://ONE.example",
 		"https://one.example",
-		"https://one.example,https://two.example,https://three.example,https://four.example",
+		strings.Join(append(dozen, "https://extra.example"), ","),
 		"https://one.example,https://two.example#secret",
 	} {
 		if _, err := parseRelays(raw); err == nil {
@@ -120,7 +135,8 @@ func TestStaticRelaysDoNotClaimLiveStatus(t *testing.T) {
 	}
 	for _, required := range []string{
 		"Blossom Relays",
-		"Configured HTTPS Blossom storage destinations.",
+		"Configured storage relays and public Blossom directory.",
+		"Directory entries are reference-only",
 		"Availability and browser CORS are not checked",
 		`class="relays-card"`,
 		`class="relays-table-wrapper"`,
@@ -141,14 +157,28 @@ func TestStaticRelaysDoNotClaimLiveStatus(t *testing.T) {
 		`href="https://ihatemyfcklife.github.io/insomniaxxx/" class="logo-link"`,
 		`href="https://one.example"`,
 		`href="https://two.example"`,
-		"status, latency and uptime are not monitored here",
+		"Only entries marked Configured are used for direct transfers.",
 	} {
 		if !strings.Contains(page, required) {
 			t.Fatalf("static relay page missing %q", required)
 		}
 	}
-	if strings.Count(page, `class="relay-row"`) != 2 {
-		t.Fatal("static relay table must have one row per configured relay")
+	if got, want := strings.Count(page, `class="relay-row"`), 2+len(publicBlossomDirectory); got != want {
+		t.Fatalf("static relay table must include configured plus public directory servers: got %d, want %d", got, want)
+	}
+	if strings.Count(page, `>Configured</small>`) != 2 ||
+		strings.Count(page, `>Directory</small>`) != len(publicBlossomDirectory) {
+		t.Fatal("configured active relays must be distinguished from reference-only directory servers")
+	}
+	// An origin configured for storage must not be duplicated in the directory.
+	withDuplicate, err := renderRelayPage(pages, []string{
+		"https://one.example", publicBlossomDirectory[0],
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(withDuplicate, `class="relay-row"`) != 2+len(publicBlossomDirectory)-1 {
+		t.Fatal("directory must not duplicate configured storage origins")
 	}
 	for _, forbidden := range []string{
 		`href="/" class="logo-link"`,
