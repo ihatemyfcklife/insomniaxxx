@@ -63,6 +63,9 @@ jobs:
           node --check tests/zk-fragment.test.cjs
           node --check tests/guard-wait.test.cjs
           node --check tests/pages-static.test.cjs
+          node --check tests/repository-metadata.test.cjs
+          bash -n scripts/update-repository-about.sh
+          node tests/repository-metadata.test.cjs
           node tests/zk-fragment.test.cjs
           node tests/guard-wait.test.cjs
           node tests/frontend.test.cjs
