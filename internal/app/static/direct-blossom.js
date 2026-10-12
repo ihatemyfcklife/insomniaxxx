@@ -5,6 +5,7 @@
   "use strict";
   const HEX = /^[a-f0-9]{64}$/;
   const MAX_BLOB = 68 * 1024 * 1024;
+  const staticMode = !!(root.InsomniaStatic && root.InsomniaStatic.enabled);
   const DIRECT_TIMEOUT_MS = 45000;
   let relayList = null;
   let proxySelection = null;
@@ -90,6 +91,8 @@
   // A direct relay learns the browser's public network/Tor exit address.
   // Anyone can choose app-proxied transfers for additional relay privacy.
   function proxyOnly() {
+    // Static hosting has no Go proxy or admission endpoints.
+    if (staticMode) return false;
     if (proxySelection !== null) return proxySelection;
     try {
       const saved = root.sessionStorage.getItem("insomnia:proxy-only");
@@ -125,11 +128,16 @@
 
   async function configuredRelays() {
     if (relayList) return relayList;
-    const response = await fetch("/direct-relays", {
-      credentials: "same-origin", cache: "no-store", redirect: "error"
-    });
-    if (!response.ok) throw new Error("direct relay discovery unavailable");
-    const info = await response.json();
+    let info;
+    if (staticMode) {
+      info = {relays: root.InsomniaStatic.relays};
+    } else {
+      const response = await fetch("/direct-relays", {
+        credentials: "same-origin", cache: "no-store", redirect: "error"
+      });
+      if (!response.ok) throw new Error("direct relay discovery unavailable");
+      info = await response.json();
+    }
     if (!info || !Array.isArray(info.relays)) throw new Error("invalid direct relay list");
     const known = new Set();
     const relays = [];
@@ -246,7 +254,9 @@
       observeRelay(relay, false);
     }
     if (signal && signal.aborted) throw new Error("transfer cancelled");
-    if (!proxyOnly()) throw new Error("Direct download failed. Select the encrypted proxy option to retry.");
+    if (!proxyOnly()) throw new Error(staticMode
+      ? "Direct download failed. Check Blossom relay availability and browser CORS; this static site has no proxy."
+      : "Direct download failed. Select the encrypted proxy option to retry.");
     // Proxying is an explicit transport choice; keys still stay local.
     const proxy = await fetch("/d/" + hash + "?cipher=1", {
       signal, credentials: "same-origin", cache: "no-store",
@@ -342,7 +352,9 @@
       if (successes >= 2) return { hash, direct: true };
     }
     // A partial one-relay success is not enough to publish a share link.
-    throw new Error("Direct upload failed. Select the encrypted proxy option to retry through insomniaXXX.");
+    throw new Error(staticMode
+      ? "Direct upload failed. Check Blossom relay availability, upload permissions and browser CORS; this static site has no proxy."
+      : "Direct upload failed. Select the encrypted proxy option to retry through insomniaXXX.");
   }
 
   root.InsomniaDirect = {
