@@ -2,6 +2,7 @@
 // ciphertext (or RLNC manifest), decrypt and decode locally in Wasm, then reveal the preview.
 (async function () {
   const script = document.currentScript;
+  const staticSite = !!(window.InsomniaStatic && window.InsomniaStatic.enabled);
   const cipherURL = script ? script.getAttribute("data-cipher") : "";
   const loader = document.getElementById("zkLoader");
   const content = document.getElementById("zkContent");
@@ -75,7 +76,7 @@
   try {
     setStatus("Initializing WebAssembly cryptographic engine…");
     const go = new Go();
-    const wasmResp = await fetch("/static/app.wasm");
+    const wasmResp = await fetch(staticSite ? "./static/app.wasm" : "/static/app.wasm");
     if (!wasmResp.ok) {
       setStatus("Wasm bundle missing (run make wasm).", true);
       return;
@@ -90,10 +91,12 @@
   let cipher;
   try {
     setStatus("Downloading encrypted payload…");
-    const match = /^\/d\/([a-f0-9]{64})\?cipher=1$/.exec(cipherURL);
-    if (!match) throw new Error("invalid ciphertext path");
+    const hash = staticSite
+      ? new URL(window.location.href).searchParams.get("hash")
+      : (/^\/d\/([a-f0-9]{64})\?cipher=1$/.exec(cipherURL) || [])[1];
+    if (!hash || !/^[a-f0-9]{64}$/.test(hash)) throw new Error("invalid ciphertext path");
     if (window.InsomniaDirect) {
-      cipher = await window.InsomniaDirect.downloadEncrypted(match[1]);
+      cipher = await window.InsomniaDirect.downloadEncrypted(hash);
     } else {
       throw new Error("Transfer helper unavailable; reload the page.");
     }
@@ -177,7 +180,7 @@
         fallback.appendChild(message);
         const cross = document.createElement("img");
         cross.className = "no-preview-cross";
-        cross.src = "/static/preview-unavailable.png";
+        cross.src = staticSite ? "./static/preview-unavailable.png" : "/static/preview-unavailable.png";
         cross.alt = "";
         cross.width = 128;
         cross.height = 128;
