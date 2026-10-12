@@ -18,7 +18,22 @@ import (
 	"anonblossom/internal/web"
 )
 
-const defaultRelays = "https://cdn.hzrd149.com,https://nostr.download,https://blossom.poster.place"
+// Default storage candidates accept opaque blobs in principle; availability,
+// upload policy and browser CORS must still be verified on a real deployment.
+const defaultRelays = "https://cdn.hzrd149.com,https://nostr.download,https://blossom.poster.place,https://cdn.sovbit.host,https://cdn.sebdev.io"
+
+// Public Blossom services with varying policies (some accept media only).
+// These are shown as references, never silently used to upload user files.
+var publicBlossomDirectory = []string{
+	"https://blossom.primal.net",
+	"https://blossom.nostr.build",
+	"https://cdn.satellite.earth",
+	"https://cdn.divine.video",
+	"https://blossom.azzamo.media",
+	"https://24242.io",
+}
+
+const maxStaticStorageRelays = 12
 const maxUploadBytes = 64 << 20
 const githubPagesHomeURL = "https://ihatemyfcklife.github.io/insomniaxxx/"
 
@@ -31,7 +46,7 @@ var staticAssets = []string{
 
 func main() {
 	output := flag.String("out", "dist/pages", "output directory for static GitHub Pages site")
-	relayArg := flag.String("relays", defaultRelays, "2 or 3 independent HTTPS Blossom origins (comma-separated)")
+	relayArg := flag.String("relays", defaultRelays, "2 to 12 trusted independent HTTPS Blossom origins (comma-separated)")
 	versionArg := flag.String("version", "", "version tag displayed in the footer (default: latest Git tag)")
 	flag.Parse()
 
@@ -70,8 +85,8 @@ func resolveVersion(explicit string) (string, error) {
 
 func parseRelays(raw string) ([]string, error) {
 	parts := strings.Split(raw, ",")
-	if len(parts) < 2 || len(parts) > 3 {
-		return nil, errors.New("provide 2 or 3 independent HTTPS Blossom relay origins")
+	if len(parts) < 2 || len(parts) > maxStaticStorageRelays {
+		return nil, errors.New("provide 2 to 12 independent HTTPS Blossom relay origins")
 	}
 	relays := make([]string, 0, len(parts))
 	seen := map[string]bool{}
@@ -164,10 +179,20 @@ func makeStatic(page string) string {
 // Render with the same Go template and mobile relay-card styling as the
 // server-hosted editions. Availability cannot be measured on a static host.
 func renderRelayPage(pages *web.Pages, relays []string) (string, error) {
-	views := make([]web.RelayView, 0, len(relays))
+	views := make([]web.RelayView, 0, len(relays)+len(publicBlossomDirectory))
+	seen := make(map[string]bool, len(relays)+len(publicBlossomDirectory))
 	for _, relay := range relays {
 		views = append(views, web.RelayView{
 			URL: relay, Latency: "—", Source: "Configured", LastCheck: "—",
+		})
+		seen[strings.ToLower(relay)] = true
+	}
+	for _, relay := range publicBlossomDirectory {
+		if seen[strings.ToLower(relay)] {
+			continue
+		}
+		views = append(views, web.RelayView{
+			URL: relay, Latency: "—", Source: "Directory", LastCheck: "—",
 		})
 	}
 	page := httptest.NewRecorder()
