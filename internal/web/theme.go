@@ -688,6 +688,16 @@ const (
 			background: #ef4444;
 		}
 
+		/* Build-time relay configuration: never suggest a live health check. */
+		.relay-badge.unchecked {
+			background: rgba(148, 163, 184, 0.10);
+			color: var(--pico-muted-color);
+			border: 1px solid var(--pico-muted-border-color);
+		}
+		.relay-badge.unchecked::before {
+			background: var(--pico-muted-color);
+		}
+
 		.relay-badge.blacklisted {
 			background: rgba(245, 158, 11, 0.12);
 			color: #f59e0b;
