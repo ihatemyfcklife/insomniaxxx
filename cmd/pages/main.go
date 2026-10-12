@@ -67,6 +67,7 @@ func resolveVersion(explicit string) (string, error) {
 	}
 	return version, nil
 }
+
 func parseRelays(raw string) ([]string, error) {
 	parts := strings.Split(raw, ",")
 	if len(parts) < 2 || len(parts) > 3 {
