@@ -11,8 +11,8 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"path/filepath"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -62,65 +62,11 @@ func resolveVersion(explicit string) (string, error) {
 		}
 		version = strings.TrimSpace(string(output))
 	}
-	if !regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+// Command pages exports the existing Zero-Knowledge UI as a fully static site.
-// No Go server, application API, CAPTCHA or encrypted proxy is needed at runtime.
-package main
-
-import (
-	"encoding/json"
-	"errors"
-	"flag"
-	"fmt"
-	"html"
-	"net/http/httptest"
-	"net/url"
-	"os"
-	"path/filepath"
-	"os/exec"
-	"regexp"
-	"strings"
-
-	"anonblossom/internal/web"
-)
-
-const defaultRelays = "https://cdn.hzrd149.com,https://nostr.download,https://blossom.poster.place"
-const maxUploadBytes = 64 << 20
-
-var staticAssets = []string{
-	"app.wasm", "wasm_exec.js", "pico.min.css", "favicon.ico",
-	"favicon.png", "logo.png", "xxx.png", "loading.gif",
-	"preview-unavailable.png", "boot.js", "direct-blossom.js",
-	"stream-file.js", "view.js",
-}
-
-func main() {
-	output := flag.String("out", "dist/pages", "output directory for static GitHub Pages site")
-	relayArg := flag.String("relays", defaultRelays, "2 or 3 independent HTTPS Blossom origins (comma-separated)")
-	versionArg := flag.String("version", "", "version tag displayed in the footer (default: latest Git tag)")
-	flag.Parse()
-
-	version, err := resolveVersion(*versionArg)
-	if err == nil {
-		web.Version = version
-		var relays []string
-		relays, err = parseRelays(*relayArg)
-		if err == nil {
-			err = build(*output, relays)
-		}
-	}
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "pages:", err)
-		os.Exit(1)
-	}
-	fmt.Printf("Static Zero-Knowledge site generated in %s\n", *output)
-}
-
-).MatchString(version) {
+	if !regexp.MustCompile("^v[0-9]+[.][0-9]+[.][0-9]+$").MatchString(version) {
 		return "", fmt.Errorf("invalid release version %q (expected vX.Y.Z)", version)
 	}
 	return version, nil
 }
-
 func parseRelays(raw string) ([]string, error) {
 	parts := strings.Split(raw, ",")
 	if len(parts) < 2 || len(parts) > 3 {
