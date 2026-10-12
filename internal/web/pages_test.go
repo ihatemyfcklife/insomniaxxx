@@ -280,9 +280,28 @@ func TestFooterHTML(t *testing.T) {
 	if html == "" {
 		t.Fatal("FooterHTML returned empty string")
 	}
-	for _, needle := range []string{`class="site-footer"`, `class="footer-author"`, `Made by`, `ihatemyfcklife`, `app-version`} {
+	for _, needle := range []string{
+		`class="site-footer"`,
+		`class="footer-author"`,
+		`<span class="app-version">`,
+		`Made by <strong><a href="https://github.com/ihatemyfcklife"`,
+		`>ihatemyfcklife</a></strong>`,
+		`href="https://github.com/ihatemyfcklife/insomniaxxx"`,
+		`>sourcecode</a>`,
+		`href="https://github.com/ihatemyfcklife/badcrypt"`,
+		`>badcrypt</a>`,
+		`href="https://github.com/ihatemyfcklife/badrlnc"`,
+		`>badrlnc</a>`,
+		`href="https://github.com/ihatemyfcklife/onionguard"`,
+		`>onionguard</a>`,
+	} {
 		if !strings.Contains(html, needle) {
 			t.Fatalf("FooterHTML missing %q", needle)
+		}
+	}
+	for _, stale := range []string{`>PGP</a>`, `>Contact</a>`, `>ads</a>`, `href="#"`} {
+		if strings.Contains(html, stale) {
+			t.Fatalf("FooterHTML contains old placeholder link %q", stale)
 		}
 	}
 }
