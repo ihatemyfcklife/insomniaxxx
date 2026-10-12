@@ -61,6 +61,7 @@ type PageData struct {
 	RawURL         string
 	DownloadURL    string
 	ServerMode     bool
+	Static         bool // Static GitHub Pages export: relay availability has not been checked.
 	ZK             bool
 	CipherURL      string
 	FileName       string
