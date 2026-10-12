@@ -4,6 +4,14 @@
 
 Decentralized anonymous file sharing in Go.
 
+**GitHub Pages / 100% browser-side WASM edition:** the repository can also
+build and publish a standalone static frontend with no Go server at runtime.
+It encrypts, RLNC-shards, uploads and decrypts locally, using directly
+configured HTTPS Blossom relays. The static share format is
+`view.html?hash=<ciphertext_hash>#<secret>`. See the
+[GitHub Pages deployment guide](docs/GITHUB_PAGES.md) for activation,
+configuration, CORS/relay availability, and privacy trade-offs.
+
 ## Dependencies
 
 The runtime uses:
