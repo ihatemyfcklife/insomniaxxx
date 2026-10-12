@@ -7,7 +7,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"html"
 	"net/http/httptest"
 	"net/url"
 	"os"
@@ -162,32 +161,22 @@ func makeStatic(page string) string {
 	return page
 }
 
-func renderRelayPage(relays []string) string {
-	var entries strings.Builder
+// Render with the same Go template and mobile relay-card styling as the
+// server-hosted editions. Availability cannot be measured on a static host.
+func renderRelayPage(pages *web.Pages, relays []string) (string, error) {
+	views := make([]web.RelayView, 0, len(relays))
 	for _, relay := range relays {
-		target := html.EscapeString(relay)
-		fmt.Fprintf(&entries, `<li><a href="%s" target="_blank" rel="noopener noreferrer">%s</a></li>`, target, target)
+		views = append(views, web.RelayView{
+			URL: relay, Latency: "—", Source: "Configured", LastCheck: "—",
+		})
 	}
-	return fmt.Sprintf(`<!doctype html>
-<html lang="en" data-theme="dark">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="%s">
-  <title>Blossom Relays · insomniaXXX</title>
-  <link rel="icon" type="image/png" href="./static/favicon.png">
-  <link rel="stylesheet" href="./static/pico.min.css">
-  <style>%s</style>
-</head>
-<body><main class="container">
-%s
-<header><h1>Configured Blossom Relays</h1><p class="muted">These HTTPS storage destinations are configured at build time; their availability and browser CORS permissions are not guaranteed.</p></header>
-<article><ul>%s</ul></article>
-<p><a href="./" class="view-relays-link">Back to upload</a></p>
-%s
-</main></body></html>`, web.PicoCSP, web.PicoThemeCSS,
-		staticLogoHome(strings.ReplaceAll(web.LogoHTML(), "/static/", "./static/")), entries.String(), web.FooterHTML())
+	page := httptest.NewRecorder()
+	if err := pages.Relays(page, web.PageData{
+		Title: "insomniaXXX", Static: true, Relays: views,
+	}); err != nil {
+		return "", err
+	}
+	return makeStatic(page.Body.String()), nil
 }
 
 func build(out string, relays []string) error {
@@ -196,6 +185,10 @@ func build(out string, relays []string) error {
 		return err
 	}
 	home, view, err := renderPages(pages)
+	if err != nil {
+		return err
+	}
+	relayPage, err := renderRelayPage(pages, relays)
 	if err != nil {
 		return err
 	}
@@ -213,7 +206,7 @@ func build(out string, relays []string) error {
 	outputs := map[string]string{
 		"index.html": home,
 		"view.html": view,
-		"relays.html": renderRelayPage(relays),
+		"relays.html": relayPage,
 		".nojekyll": "",
 	}
 	for name, content := range outputs {
