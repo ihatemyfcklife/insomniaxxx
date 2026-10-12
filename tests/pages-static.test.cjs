@@ -70,6 +70,11 @@ function harness({offline=false}={}) {
   const version=index.match(/<span class="app-version">(v[0-9]+\.[0-9]+\.[0-9]+)<\/span>/)?.[1];
   assert(version, 'static site must display a real released version instead of dev');
   for (const page of [index, viewer, relaysPage]) {
+    assert(page.includes('href="https://ihatemyfcklife.github.io/insomniaxxx/" class="logo-link"'),
+      'every static page logo must point to the project homepage');
+    assert(!page.includes('href="/" class="logo-link"') &&
+      !page.includes('href="./" class="logo-link"'),
+      'logo must not link to domain root or a relative path');
     assert(page.includes('<span class="app-version">'+version+'</span>'),
       'all exported pages must show the same release version');
     for (const repo of ['insomniaxxx', 'badcrypt', 'badrlnc', 'onionguard']) {
