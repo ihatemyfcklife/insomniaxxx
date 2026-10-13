@@ -1,0 +1,38 @@
+name: One-time prune non-main branches
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/one-time-prune-branches.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  prune:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete all non-main branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          default=$(gh api "repos/$GITHUB_REPOSITORY" --jq '.default_branch')
+          if [[ "$default" != main ]]; then
+            echo "Refusing to prune: default branch is $default, not main." >&2
+            exit 1
+          fi
+          mapfile -t branches < <(gh api --paginate "repos/$GITHUB_REPOSITORY/branches?per_page=100" --jq '.[].name')
+          for branch in "${branches[@]}"; do
+            if [[ "$branch" == main ]]; then continue; fi
+            printf 'Deleting branch: %s\n' "$branch"
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$branch"
+          done
+          remaining=$(gh api --paginate "repos/$GITHUB_REPOSITORY/branches?per_page=100" --jq '.[].name')
+          if [[ "$remaining" != main ]]; then
+            echo "Unexpected remaining branches: $remaining" >&2
+            exit 1
+          fi
+          echo 'Confirmed: only main remains.'
