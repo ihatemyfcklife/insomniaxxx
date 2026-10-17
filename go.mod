@@ -3,7 +3,7 @@ module anonblossom
 go 1.26.0
 
 require (
-	fiatjaf.com/nostr v0.0.0-20261005012418-685c38fc6629
+	fiatjaf.com/nostr v0.0.0-20261017112253-0fec8812d5b2
 	github.com/ihatemyfcklife/badcrypt v1.0.3
 	github.com/ihatemyfcklife/badrlnc v1.2.0
 	github.com/ihatemyfcklife/onionguard v1.2.1
@@ -33,6 +33,6 @@ require (
 	github.com/tidwall/pretty v1.2.2 // indirect
 	go.uber.org/atomic v1.12.0 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
-	golang.org/x/exp v0.0.0-20261011100332-faecfb24eb49 // indirect
+	golang.org/x/exp v0.0.0-20261014143641-f0251eb4aa3e // indirect
 	golang.org/x/sys v0.49.0 // indirect
 )
